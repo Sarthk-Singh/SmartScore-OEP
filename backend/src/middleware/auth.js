@@ -10,7 +10,7 @@ export function auth(req, res, next) {
   const token = header.split(" ")[1];
 
   try {
-    const payload = jwt.verify(token, "SECRET_KEY");
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.user = payload; // { userId, role }
     next();
   } catch (err) {
