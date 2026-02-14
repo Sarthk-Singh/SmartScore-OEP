@@ -1,4 +1,4 @@
-# Exam Management System
+# SmartScore-OEP | Secure Online Examination Platform
 
 A comprehensive web-based platform for managing and conducting online university exams securely.
 
