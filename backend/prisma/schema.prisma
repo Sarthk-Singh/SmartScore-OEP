@@ -1,0 +1,134 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum QuestionType {
+  MCQ
+  SUBJECTIVE
+}
+
+model Grade {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g., "BTech", "BSc"
+  createdAt DateTime @default(now())
+
+  courses  Course[]
+  students User[]   @relation("StudentGrade")
+  teachers User[]   @relation("TeacherGrades")
+  exams    Exam[]
+}
+
+model Course {
+  id        String   @id @default(uuid())
+  name      String // e.g., "Java", "Python"
+  createdAt DateTime @default(now())
+
+  gradeId String
+  grade   Grade  @relation(fields: [gradeId], references: [id])
+
+  exams Exam[]
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  password   String
+  role       Role
+  firstLogin Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  // Student specific fields
+  studentId            String? // Custom ID or Roll No if needed
+  rollNumber           String?
+  universityRollNumber String?
+
+  gradeId String?
+  grade   Grade?  @relation("StudentGrade", fields: [gradeId], references: [id])
+
+  teachingGrades Grade[] @relation("TeacherGrades")
+
+  submissions Submission[]
+}
+
+model Exam {
+  id              String   @id @default(uuid())
+  title           String
+  scheduledDate   DateTime
+  durationMinutes Int
+  createdAt       DateTime @default(now())
+  password        String? // Password to attempt exam
+  resultsReleased Boolean  @default(false)
+
+  // Relations
+  gradeId String
+  grade   Grade  @relation(fields: [gradeId], references: [id])
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  questions   Question[]
+  submissions Submission[]
+}
+
+model Question {
+  id           String       @id @default(uuid())
+  questionText String
+  marks        Int
+  type         QuestionType
+
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id])
+
+  options Option[]
+  answers Answer[]
+}
+
+model Option {
+  id         String  @id @default(uuid())
+  optionText String
+  isCorrect  Boolean @default(false)
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+
+  answers Answer[]
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  submittedAt DateTime @default(now())
+  totalScore  Int      @default(0)
+
+  examId    String
+  studentId String
+
+  exam    Exam @relation(fields: [examId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+
+  answers Answer[]
+
+  @@unique([examId, studentId])
+}
+
+model Answer {
+  id               String  @id @default(uuid())
+  submissionId     String
+  questionId       String
+  selectedOptionId String?
+
+  submission     Submission @relation(fields: [submissionId], references: [id])
+  question       Question   @relation(fields: [questionId], references: [id])
+  selectedOption Option?    @relation(fields: [selectedOptionId], references: [id])
+}

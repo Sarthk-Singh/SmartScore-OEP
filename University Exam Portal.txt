@@ -1,0 +1,71 @@
+University Exam Portal
+
+Tech 
+    Spring boot - backend
+    React js application - react js
+    mysql - database
+    maven - project and dependancy management
+    bootstrap 5 - styling 
+
+Softeware
+    Spring tools suit STS - backend
+    VS Code - frontend
+    Mysql workbench - database
+
+3 Module
+    Admin
+    Teacher
+    Students
+
+Functional Module
+    user authenticaltion
+    teacher module
+    student module
+    grade module 
+    grade module
+    course module
+    exam module
+    exam ques and ans module
+    exam result module
+
+Admin
+    registed and login into system
+    multiple grades - Btech, Bsc, BBA
+    assign teachers to handle grade
+    completeexam details and generate reports
+
+Teacher
+    add courses into grades - java, python, js
+    schedule the exam for any course at any time by adding questions
+    see the students appeared for exam and their results
+
+Students
+    students can see exam date and time
+    students can login at the exam time and see the questions then and not before
+    answer and submit exam
+    exam evaluation and result generation
+    students can see their results and performance
+
+Project details
+    Run the backend application using STS - run as spring boot application
+    Run the frontend (react) application using VS code - npm start
+
+    Admin
+        First login using admin credentials
+        username: admin
+        password: admin123
+        Then add grades and assign teachers
+
+    Teacher
+        my profile
+        view the assigned grade 
+        login
+        add students
+        schedule and delete exams
+        
+    Student
+        my profile - grade rollno.
+        previous attempted exams
+        see future exams
+        attempt the exam and submit for evaluation
+        get result on mail

@@ -1,0 +1,100 @@
+-----------------------------------------------------------------------admin token----------------------------------------------------------------------------------------------
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MGJjYzY0ZS0zZjM2LTRlMWYtYWY0NC0yMTY0YTEwODFlYjAiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyMjQ5MDUsImV4cCI6MTc3MDMxMTMwNX0.Uz7hJwi6PcNsgG4NjvZWOBtTqWen8noeAyLzKHPgMyU
+
+curl http://localhost:8080/admin-only \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MGJjYzY0ZS0zZjM2LTRlMWYtYWY0NC0yMTY0YTEwODFlYjAiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyMjQ5MDUsImV4cCI6MTc3MDMxMTMwNX0.Uz7hJwi6PcNsgG4NjvZWOBtTqWen8noeAyLzKHPgMyU"
+
+
+
+curl -X POST http://localhost:8080/admin/create-teacher \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MGJjYzY0ZS0zZjM2LTRlMWYtYWY0NC0yMTY0YTEwODFlYjAiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyMjQ5MDUsImV4cCI6MTc3MDMxMTMwNX0.Uz7hJwi6PcNsgG4NjvZWOBtTqWen8noeAyLzKHPgMyU" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Teacher One","email":"teacher1@exam.com","password":"teach123"}'
+
+
+curl -X POST http://localhost:8080/admin/create-student \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MGJjYzY0ZS0zZjM2LTRlMWYtYWY0NC0yMTY0YTEwODFlYjAiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyMjQ5MDUsImV4cCI6MTc3MDMxMTMwNX0.Uz7hJwi6PcNsgG4NjvZWOBtTqWen8noeAyLzKHPgMyU" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Student One","email":"student1@exam.com","password":"stud123"}'
+
+--------------------------------------------------------------------teacher-token-----------------------------------------------------------------------------------------------------
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3ZGM4ZDM3Yy1iOTg1LTQwMDMtYWM0ZS04NWE1OWIzNTVjNDAiLCJyb2xlIjoiVEVBQ0hFUiIsImlhdCI6MTc3MDIyNTQxOCwiZXhwIjoxNzcwMzExODE4fQ.-DQ3iMio7uXIRCz9rjaIvQR5N9IQCMhuTpywmProLVY
+
+
+
+curl http://localhost:8080/teacher/exams \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3ZGM4ZDM3Yy1iOTg1LTQwMDMtYWM0ZS04NWE1OWIzNTVjNDAiLCJyb2xlIjoiVEVBQ0hFUiIsImlhdCI6MTc3MDIyNTQxOCwiZXhwIjoxNzcwMzExODE4fQ.-DQ3iMio7uXIRCz9rjaIvQR5N9IQCMhuTpywmProLVY"
+
+
+
+curl -X POST http://localhost:8080/teacher/create-exam \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3ZGM4ZDM3Yy1iOTg1LTQwMDMtYWM0ZS04NWE1OWIzNTVjNDAiLCJyb2xlIjoiVEVBQ0hFUiIsImlhdCI6MTc3MDIyNTQxOCwiZXhwIjoxNzcwMzExODE4fQ.-DQ3iMio7uXIRCz9rjaIvQR5N9IQCMhuTpywmProLVY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Midterm Test",
+    "subject": "Data Structures",
+    "scheduledDate": "2026-02-10T10:00:00",
+    "durationMinutes": 90
+  }'
+
+
+curl -X POST http://localhost:8080/teacher/add-question \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3ZGM4ZDM3Yy1iOTg1LTQwMDMtYWM0ZS04NWE1OWIzNTVjNDAiLCJyb2xlIjoiVEVBQ0hFUiIsImlhdCI6MTc3MDIyNTQxOCwiZXhwIjoxNzcwMzExODE4fQ.-DQ3iMio7uXIRCz9rjaIvQR5N9IQCMhuTpywmProLVY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "examId": "ee2461fe-1031-48e1-a852-d23b0cb7da79",
+    "type": "MCQ",
+    "questionText": "What is the time complexity of binary search?",
+    "marks": 2,
+    "options": [
+      { "optionText": "O(n)", "isCorrect": false },
+      { "optionText": "O(log n)", "isCorrect": true },
+      { "optionText": "O(n log n)", "isCorrect": false },
+      { "optionText": "O(1)", "isCorrect": false }
+    ]
+  }'
+
+
+Output:
+
+{"id":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd","questionText":"What is the time complexity of binary search?","marks":2,"type":"MCQ","examId":"ee2461fe-1031-48e1-a852-d23b0cb7da79","options":[{"id":"10fb4558-38bf-4973-99ce-fd1125b2b9fb","optionText":"O(n)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"2ed2eb04-4a42-460f-9a60-6c68bc106ebb","optionText":"O(log n)","isCorrect":true,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"5913a2c7-405a-44b3-b6ab-c30318e05970","optionText":"O(n log n)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"29243bd9-4417-47fc-972c-eb949dcc543b","optionText":"O(1)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"}]}%   
+
+---------------------------------------------------------------------Exam id---------------------------------------------------------------------------------------------
+ee2461fe-1031-48e1-a852-d23b0cb7da79
+--------------------------------------------------------------------------Student id---------------------------------------------------------------------------------------------
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyNjJkMjY3MS00YmRlLTQwODUtOWE1Yy01ZGIyYTA5MDU1NGQiLCJyb2xlIjoiU1RVREVOVCIsImlhdCI6MTc3MDIyNjczOSwiZXhwIjoxNzcwMzEzMTM5fQ.fgKq6NiNMugdV6ZfbK4xBVq4kT7UkkyFd09qUbcPTvI                                            
+
+{"id":"262d2671-4bde-4085-9a5c-5db2a090554d","name":"Student One","email":"student1@exam.com","password":"$2b$10$L9O9vyl56RxfNdcIGLIO2uQKx5I2nQICSPJijMiIHwj2XsxW5kDdS","role":"STUDENT","firstLogin":true,"createdAt":"2026-02-04T17:35:11.210Z"}%                             
+
+curl -X POST http://localhost:8080/admin/create-student \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MGJjYzY0ZS0zZjM2LTRlMWYtYWY0NC0yMTY0YTEwODFlYjAiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyMjQ5MDUsImV4cCI6MTc3MDMxMTMwNX0.Uz7hJwi6PcNsgG4NjvZWOBtTqWen8noeAyLzKHPgMyU" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Student One","email":"student1@exam.com","password":"stud123"}'
+
+curl http://localhost:8080/student/exam/ee2461fe-1031-48e1-a852-d23b0cb7da79 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyNjJkMjY3MS00YmRlLTQwODUtOWE1Yy01ZGIyYTA5MDU1NGQiLCJyb2xlIjoiU1RVREVOVCIsImlhdCI6MTc3MDIyNjczOSwiZXhwIjoxNzcwMzEzMTM5fQ.fgKq6NiNMugdV6ZfbK4xBVq4kT7UkkyFd09qUbcPTvI"
+
+
+Output:
+
+{"id":"ee2461fe-1031-48e1-a852-d23b0cb7da79","title":"Midterm Test","subject":"Data Structures","scheduledDate":"2026-02-10T04:30:00.000Z","durationMinutes":90,"createdAt":"2026-02-04T17:19:31.345Z","questions":[{"id":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd","questionText":"What is the time complexity of binary search?","marks":2,"type":"MCQ","examId":"ee2461fe-1031-48e1-a852-d23b0cb7da79","options":[{"id":"10fb4558-38bf-4973-99ce-fd1125b2b9fb","optionText":"O(n)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"2ed2eb04-4a42-460f-9a60-6c68bc106ebb","optionText":"O(log n)","isCorrect":true,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"5913a2c7-405a-44b3-b6ab-c30318e05970","optionText":"O(n log n)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"},{"id":"29243bd9-4417-47fc-972c-eb949dcc543b","optionText":"O(1)","isCorrect":false,"questionId":"00902a3d-55a7-4459-a82d-7f4c56f5bdcd"}]}]}%  
+
+
+--------------------------------------------------------------------------Submit exam---------------------------------------------------------------------------------------------
+
+{"id":"707ae2a3-f77b-4916-a267-891c50326bfa","submittedAt":"2026-02-04T18:00:26.505Z","totalScore":2,"examId":"ee2461fe-1031-48e1-a852-d23b0cb7da79","studentId":"262d2671-4bde-4085-9a5c-5db2a090554d"}%                                                                       
+
+curl -X POST http://localhost:8080/student/submit-exam \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyNjJkMjY3MS00YmRlLTQwODUtOWE1Yy01ZGIyYTA5MDU1NGQiLCJyb2xlIjoiU1RVREVOVCIsImlhdCI6MTc3MDIyNjczOSwiZXhwIjoxNzcwMzEzMTM5fQ.fgKq6NiNMugdV6ZfbK4xBVq4kT7UkkyFd09qUbcPTvI" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "examId": "ee2461fe-1031-48e1-a852-d23b0cb7da79",
+    "answers": [
+      {
+        "questionId": "00902a3d-55a7-4459-a82d-7f4c56f5bdcd",
+        "selectedOptionId": "2ed2eb04-4a42-460f-9a60-6c68bc106ebb"
+      }
+    ]
+  }'
