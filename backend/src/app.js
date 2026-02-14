@@ -11,13 +11,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (req, res) => {
+
+const apiRouter = express.Router();
+
+apiRouter.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Backend is running" });
 });
 
 import { prisma } from "./prisma.js";
 
-app.get("/test-db", async (req, res) => {
+apiRouter.get("/test-db", async (req, res) => {
   try {
     const users = await prisma.user.findMany();
     res.json(users);
@@ -27,7 +30,7 @@ app.get("/test-db", async (req, res) => {
 });
 
 // admin seeding endpoint
-app.post("/seed-admin", async (req, res) => {
+apiRouter.post("/seed-admin", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash("admin123", 10);
 
@@ -47,7 +50,7 @@ app.post("/seed-admin", async (req, res) => {
 });
 
 // login endpoint
-app.post("/login", async (req, res) => {
+apiRouter.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -77,7 +80,7 @@ app.post("/login", async (req, res) => {
 });
 
 // protected route example
-app.get("/protected", auth, (req, res) => {
+apiRouter.get("/protected", auth, (req, res) => {
   res.json({
     message: "You are authenticated",
     user: req.user,
@@ -85,7 +88,7 @@ app.get("/protected", auth, (req, res) => {
 });
 
 // Change Password Endpoint
-app.post("/change-password", auth, async (req, res) => {
+apiRouter.post("/change-password", auth, async (req, res) => {
   const { newPassword } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -103,14 +106,14 @@ app.post("/change-password", auth, async (req, res) => {
 });
 
 // role-based route example
-app.get("/admin-only", auth, requireRole("ADMIN"), (req, res) => {
+apiRouter.get("/admin-only", auth, requireRole("ADMIN"), (req, res) => {
   res.json({ message: "Admin access granted" });
 });
 
 // --- GRADE & COURSE MANAGEMENT ---
 
 // Admin creates a grade
-app.post("/admin/grades", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.post("/admin/grades", auth, requireRole("ADMIN"), async (req, res) => {
   const { name } = req.body;
   try {
     const grade = await prisma.grade.create({ data: { name } });
@@ -121,7 +124,7 @@ app.post("/admin/grades", auth, requireRole("ADMIN"), async (req, res) => {
 });
 
 // Admin lists all grades
-app.get("/admin/grades", auth, async (req, res) => {
+apiRouter.get("/admin/grades", auth, async (req, res) => {
   try {
     const grades = await prisma.grade.findMany({ include: { courses: true } });
     res.json(grades);
@@ -131,7 +134,7 @@ app.get("/admin/grades", auth, async (req, res) => {
 });
 
 // Admin creates a course for a grade
-app.post("/admin/courses", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.post("/admin/courses", auth, requireRole("ADMIN"), async (req, res) => {
   const { name, gradeId } = req.body;
   try {
     const course = await prisma.course.create({
@@ -144,7 +147,7 @@ app.post("/admin/courses", auth, requireRole("ADMIN"), async (req, res) => {
 });
 
 // List courses for a specific grade
-app.get("/admin/courses/:gradeId", auth, async (req, res) => {
+apiRouter.get("/admin/courses/:gradeId", auth, async (req, res) => {
   const { gradeId } = req.params;
   try {
     const courses = await prisma.course.findMany({ where: { gradeId } });
@@ -155,7 +158,7 @@ app.get("/admin/courses/:gradeId", auth, async (req, res) => {
 });
 
 // Admin creates a teacher
-app.post("/admin/create-teacher", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.post("/admin/create-teacher", auth, requireRole("ADMIN"), async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
@@ -177,7 +180,7 @@ app.post("/admin/create-teacher", auth, requireRole("ADMIN"), async (req, res) =
 });
 
 // Admin creates a student
-app.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, res) => {
   const { name, email, password, studentId, rollNumber, universityRollNumber, gradeId } = req.body;
 
   try {
@@ -203,7 +206,7 @@ app.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, res) =
 });
 
 // Admin lists all teachers
-app.get("/admin/teachers", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.get("/admin/teachers", auth, requireRole("ADMIN"), async (req, res) => {
   try {
     const teachers = await prisma.user.findMany({
       where: { role: "TEACHER" },
@@ -216,7 +219,7 @@ app.get("/admin/teachers", auth, requireRole("ADMIN"), async (req, res) => {
 });
 
 // Admin assigns teacher to a grade
-app.post("/admin/assign-teacher-grade", auth, requireRole("ADMIN"), async (req, res) => {
+apiRouter.post("/admin/assign-teacher-grade", auth, requireRole("ADMIN"), async (req, res) => {
   const { teacherId, gradeId } = req.body;
   try {
     const teacher = await prisma.user.update({
@@ -235,7 +238,7 @@ app.post("/admin/assign-teacher-grade", auth, requireRole("ADMIN"), async (req, 
 });
 
 // Teacher views their assigned grades
-app.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, res) => {
   try {
     const teacher = await prisma.user.findUnique({
       where: { id: req.user.userId },
@@ -255,7 +258,7 @@ app.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, res) => 
 });
 
 // Teacher creates an exam
-app.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req, res) => {
   const { title, gradeId, courseId, scheduledDate, durationMinutes, password } = req.body;
 
   try {
@@ -277,7 +280,7 @@ app.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req, res) 
 });
 
 // Teacher adds questions to an exam
-app.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req, res) => {
   const { examId, type, questionText, marks, options } = req.body;
 
   try {
@@ -289,6 +292,7 @@ app.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req, res)
         marks,
         options: {
           create: options,
+
         },
       },
       include: {
@@ -303,7 +307,7 @@ app.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req, res)
 });
 
 // Teacher views specific exam details (including questions)
-app.get("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.get("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) => {
   const { examId } = req.params;
   try {
     const exam = await prisma.exam.findUnique({
@@ -322,7 +326,7 @@ app.get("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) 
 });
 
 // Teacher deletes a question
-app.delete("/teacher/question/:questionId", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.delete("/teacher/question/:questionId", auth, requireRole("TEACHER"), async (req, res) => {
   const { questionId } = req.params;
   try {
     // Manually delete related options first (if not cascading in DB)
@@ -347,7 +351,7 @@ app.delete("/teacher/question/:questionId", auth, requireRole("TEACHER"), async 
 });
 
 // Teacher deletes an exam
-app.delete("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.delete("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) => {
   const { examId } = req.params;
   const { password } = req.body;
 
@@ -385,7 +389,7 @@ app.delete("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, re
 });
 
 // Teacher toggles result release status
-app.patch("/teacher/exam/:examId/toggle-release", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.patch("/teacher/exam/:examId/toggle-release", auth, requireRole("TEACHER"), async (req, res) => {
   const { examId } = req.params;
   try {
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
@@ -402,7 +406,7 @@ app.patch("/teacher/exam/:examId/toggle-release", auth, requireRole("TEACHER"), 
 });
 
 // Teacher views submissions for an exam
-app.get("/teacher/exam/:examId/submissions", auth, requireRole("TEACHER"), async (req, res) => {
+apiRouter.get("/teacher/exam/:examId/submissions", auth, requireRole("TEACHER"), async (req, res) => {
   const { examId } = req.params;
   try {
     const submissions = await prisma.submission.findMany({
@@ -418,7 +422,7 @@ app.get("/teacher/exam/:examId/submissions", auth, requireRole("TEACHER"), async
 });
 
 // List all exams (Filtered by Grade for Students)
-app.get("/exams", auth, async (req, res) => {
+apiRouter.get("/exams", auth, async (req, res) => {
   try {
     let whereClause = {};
 
@@ -450,7 +454,7 @@ app.get("/exams", auth, async (req, res) => {
 });
 
 // Student verifies exam password
-app.post("/student/verify-exam", auth, requireRole("STUDENT"), async (req, res) => {
+apiRouter.post("/student/verify-exam", auth, requireRole("STUDENT"), async (req, res) => {
   const { examId, password } = req.body;
   try {
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
@@ -482,7 +486,7 @@ app.post("/student/verify-exam", auth, requireRole("STUDENT"), async (req, res) 
 });
 
 // Student views available exams
-app.get("/student/exam/:examId", auth, requireRole("STUDENT"), async (req, res) => {
+apiRouter.get("/student/exam/:examId", auth, requireRole("STUDENT"), async (req, res) => {
   const { examId } = req.params;
 
   try {
@@ -502,7 +506,7 @@ app.get("/student/exam/:examId", auth, requireRole("STUDENT"), async (req, res) 
 });
 
 // Student submits exam answers
-app.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req, res) => {
+apiRouter.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req, res) => {
   const { examId, answers } = req.body;
 
   try {
@@ -550,7 +554,7 @@ app.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req, res) 
 
 
 // Student views their submission (only if released)
-app.get("/student/submission/:examId", auth, requireRole("STUDENT"), async (req, res) => {
+apiRouter.get("/student/submission/:examId", auth, requireRole("STUDENT"), async (req, res) => {
   const { examId } = req.params;
   try {
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
@@ -584,6 +588,9 @@ app.get("/student/submission/:examId", auth, requireRole("STUDENT"), async (req,
     res.status(500).json({ error: err.message });
   }
 });
+
+app.use("/api", apiRouter);
+
 
 
 const PORT = process.env.PORT || 8080;
