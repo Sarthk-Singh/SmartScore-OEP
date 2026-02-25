@@ -53,6 +53,7 @@ model User {
   studentId            String? // Custom ID or Roll No if needed
   rollNumber           String?
   universityRollNumber String?
+  semester             Int?
 
   gradeId String?
   grade   Grade?  @relation("StudentGrade", fields: [gradeId], references: [id])

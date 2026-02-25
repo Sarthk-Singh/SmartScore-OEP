@@ -321,7 +321,7 @@ apiRouter.post("/admin/create-teacher", auth, requireRole("ADMIN"), async (req, 
 
 // Admin creates a student
 apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, res) => {
-  const { name, email, password, studentId, rollNumber, universityRollNumber, gradeId } = req.body;
+  const { name, email, password, studentId, rollNumber, universityRollNumber, gradeId, semester } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -335,7 +335,8 @@ apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, 
         studentId,
         rollNumber,
         universityRollNumber,
-        gradeId
+        gradeId,
+        semester: semester ? parseInt(semester) : null
       },
     });
 
@@ -356,7 +357,7 @@ apiRouter.post("/admin/bulk-upload-students",
       // Parse CSV
       const rows = [];
       const REQUIRED_HEADERS = [
-        "name", "email", "studentId", "rollNumber", "universityRollNumber", "grade"
+        "name", "email", "studentId", "rollNumber", "universityRollNumber", "grade", "semester"
       ];
 
       await new Promise((resolve, reject) => {
@@ -410,6 +411,7 @@ apiRouter.post("/admin/bulk-upload-students",
         const roll = r.rollNumber?.trim();
         const uniRoll = r.universityRollNumber?.trim();
         const gradeName = r.grade?.trim();
+        const semester = parseInt(r.semester?.trim(), 10);
 
         if (!name) rowErrors.push("name is empty");
         if (!email) rowErrors.push("email is empty");
@@ -421,6 +423,7 @@ apiRouter.post("/admin/bulk-upload-students",
         else if (!gradeMap[gradeName.toLowerCase()]) {
           rowErrors.push(`grade "${gradeName}" not found (available: ${allGrades.map(g => g.name).join(", ")})`);
         }
+        if (isNaN(semester) || semester < 1) rowErrors.push(`semester must be >= 1, got "${r.semester}"`);
 
         // Duplicate email within file
         if (email && seenEmails.has(email)) {
@@ -438,7 +441,8 @@ apiRouter.post("/admin/bulk-upload-students",
           validRows.push({
             name, email, studentId: sid, rollNumber: roll,
             universityRollNumber: uniRoll,
-            gradeId: gradeMap[gradeName.toLowerCase()]
+            gradeId: gradeMap[gradeName.toLowerCase()],
+            semester
           });
         }
       }
@@ -468,7 +472,8 @@ apiRouter.post("/admin/bulk-upload-students",
               studentId: row.studentId,
               rollNumber: row.rollNumber,
               universityRollNumber: row.universityRollNumber,
-              gradeId: row.gradeId
+              gradeId: row.gradeId,
+              semester: row.semester
             }
           });
           created.push(student);

@@ -20,6 +20,7 @@ const AdminDashboard = () => {
     const [rollNumber, setRollNumber] = useState('');
     const [uniRollNumber, setUniRollNumber] = useState('');
     const [selectedGradeId, setSelectedGradeId] = useState('');
+    const [semester, setSemester] = useState('');
 
     // Grade & Course State
     const [gradeName, setGradeName] = useState('');
@@ -90,16 +91,17 @@ const AdminDashboard = () => {
                 studentId,
                 rollNumber,
                 universityRollNumber: uniRollNumber,
-                gradeId: selectedGradeId
+                gradeId: selectedGradeId,
+                semester: semester || null
             });
             toast.success('Student created! Default password: portal@123');
             setStudentName('');
             setStudentEmail('');
-            // setStudentPassword(''); // No longer used
             setStudentId('');
             setRollNumber('');
             setUniRollNumber('');
             setSelectedGradeId('');
+            setSemester('');
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create student');
         }
@@ -187,7 +189,7 @@ const AdminDashboard = () => {
     };
 
     const downloadStudentTemplate = () => {
-        const template = 'name,email,studentId,rollNumber,universityRollNumber,grade\n"John Doe",john@exam.com,STU001,101,UNI001,BTech\n';
+        const template = 'name,email,studentId,rollNumber,universityRollNumber,grade,semester\n"John Doe",john@exam.com,STU001,101,UNI001,BTech,1\n';
         const blob = new Blob([template], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -324,13 +326,23 @@ const AdminDashboard = () => {
                                             </Row>
                                             <Form.Group className="mb-3"><Form.Label>Univ Roll No</Form.Label><Form.Control required value={uniRollNumber} onChange={e => setUniRollNumber(e.target.value)} /></Form.Group>
 
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Grade</Form.Label>
-                                                <Form.Select required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
-                                                    <option value="">Select Grade</option>
-                                                    {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                                </Form.Select>
-                                            </Form.Group>
+                                            <Row>
+                                                <Col>
+                                                    <Form.Group className="mb-3">
+                                                        <Form.Label>Grade</Form.Label>
+                                                        <Form.Select required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
+                                                            <option value="">Select Grade</option>
+                                                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                                        </Form.Select>
+                                                    </Form.Group>
+                                                </Col>
+                                                <Col>
+                                                    <Form.Group className="mb-3">
+                                                        <Form.Label>Semester</Form.Label>
+                                                        <Form.Control type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
+                                                    </Form.Group>
+                                                </Col>
+                                            </Row>
 
                                             <Button variant="success" type="submit">Create Student</Button>
                                             <Button variant="outline-success" className="ms-2" onClick={openBulkStudentUpload}>
@@ -439,7 +451,7 @@ const AdminDashboard = () => {
                 </Modal.Header>
                 <Modal.Body>
                     <Alert variant="info">
-                        <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade</code><br />
+                        <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade,semester</code><br />
                         Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
                         All students get <strong>default password: portal@123</strong>
                     </Alert>
