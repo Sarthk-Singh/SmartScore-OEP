@@ -5,6 +5,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { auth } from "./middleware/auth.js";
 import { requireRole } from "./middleware/roles.js";
+import multer from "multer";
+import csvParser from "csv-parser";
+import { Readable } from "stream";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== "text/csv" && !file.originalname.endsWith(".csv")) {
+      return cb(new Error("Only CSV files are allowed"));
+    }
+    cb(null, true);
+  }
+});
 
 const app = express();
 
@@ -152,6 +166,132 @@ apiRouter.get("/admin/courses/:gradeId", auth, async (req, res) => {
   try {
     const courses = await prisma.course.findMany({ where: { gradeId } });
     res.json(courses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin deletes a grade
+apiRouter.delete("/admin/grades/:gradeId", auth, requireRole("ADMIN"), async (req, res) => {
+  const { gradeId } = req.params;
+  try {
+    // Check if any exams under this grade have submissions
+    const submissionCount = await prisma.submission.count({
+      where: { exam: { gradeId } }
+    });
+    if (submissionCount > 0) {
+      return res.status(400).json({
+        error: "Cannot delete this grade — it has exams with student submissions. Remove submissions first."
+      });
+    }
+
+    // Use a transaction to safely cascade-delete everything
+    await prisma.$transaction(async (tx) => {
+      // Find all exams for this grade
+      const exams = await tx.exam.findMany({ where: { gradeId }, select: { id: true } });
+      const examIds = exams.map(e => e.id);
+
+      if (examIds.length > 0) {
+        // Find all questions in those exams
+        const questions = await tx.question.findMany({
+          where: { examId: { in: examIds } }, select: { id: true }
+        });
+        const questionIds = questions.map(q => q.id);
+
+        if (questionIds.length > 0) {
+          await tx.option.deleteMany({ where: { questionId: { in: questionIds } } });
+        }
+        await tx.question.deleteMany({ where: { examId: { in: examIds } } });
+        await tx.exam.deleteMany({ where: { gradeId } });
+      }
+
+      // Delete courses under this grade
+      await tx.course.deleteMany({ where: { gradeId } });
+
+      // Disconnect all teachers from this grade
+      const teachers = await tx.user.findMany({
+        where: { role: "TEACHER", teachingGrades: { some: { id: gradeId } } },
+        select: { id: true }
+      });
+      for (const teacher of teachers) {
+        await tx.user.update({
+          where: { id: teacher.id },
+          data: { teachingGrades: { disconnect: { id: gradeId } } }
+        });
+      }
+
+      // Unset gradeId for students in this grade
+      await tx.user.updateMany({
+        where: { role: "STUDENT", gradeId },
+        data: { gradeId: null }
+      });
+
+      // Delete the grade
+      await tx.grade.delete({ where: { id: gradeId } });
+    }, { maxWait: 10000, timeout: 15000 });
+
+    res.json({ message: "Grade deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin deletes a course
+apiRouter.delete("/admin/courses/:courseId", auth, requireRole("ADMIN"), async (req, res) => {
+  const { courseId } = req.params;
+  try {
+    // Check if any exams under this course have submissions
+    const submissionCount = await prisma.submission.count({
+      where: { exam: { courseId } }
+    });
+    if (submissionCount > 0) {
+      return res.status(400).json({
+        error: "Cannot delete this course — it has exams with student submissions. Remove submissions first."
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Find all exams for this course
+      const exams = await tx.exam.findMany({ where: { courseId }, select: { id: true } });
+      const examIds = exams.map(e => e.id);
+
+      if (examIds.length > 0) {
+        const questions = await tx.question.findMany({
+          where: { examId: { in: examIds } }, select: { id: true }
+        });
+        const questionIds = questions.map(q => q.id);
+
+        if (questionIds.length > 0) {
+          await tx.option.deleteMany({ where: { questionId: { in: questionIds } } });
+        }
+        await tx.question.deleteMany({ where: { examId: { in: examIds } } });
+        await tx.exam.deleteMany({ where: { courseId } });
+      }
+
+      // Delete the course
+      await tx.course.delete({ where: { id: courseId } });
+    }, { maxWait: 10000, timeout: 15000 });
+
+    res.json({ message: "Course deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin removes a grade from a teacher
+apiRouter.delete("/admin/teacher/:teacherId/grade/:gradeId", auth, requireRole("ADMIN"), async (req, res) => {
+  const { teacherId, gradeId } = req.params;
+  try {
+    const teacher = await prisma.user.update({
+      where: { id: teacherId },
+      data: {
+        teachingGrades: {
+          disconnect: { id: gradeId }
+        }
+      },
+      include: { teachingGrades: true }
+    });
+    res.json(teacher);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -305,6 +445,130 @@ apiRouter.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req
     res.status(500).json({ error: err.message });
   }
 });
+
+// Teacher bulk uploads questions via CSV
+apiRouter.post("/teacher/bulk-upload-questions",
+  auth, requireRole("TEACHER"),
+  upload.single("file"),
+  async (req, res) => {
+    const { examId } = req.body;
+
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!examId) return res.status(400).json({ error: "examId is required" });
+
+    try {
+      // Verify exam exists
+      const exam = await prisma.exam.findUnique({ where: { id: examId } });
+      if (!exam) return res.status(404).json({ error: "Exam not found" });
+
+      // Parse CSV from buffer
+      const rows = [];
+      const errors = [];
+      const REQUIRED_HEADERS = [
+        "question", "optionA", "optionB", "optionC", "optionD",
+        "correctOption", "marks"
+      ];
+
+      await new Promise((resolve, reject) => {
+        const stream = Readable.from(req.file.buffer.toString());
+        stream
+          .pipe(csvParser())
+          .on("headers", (headers) => {
+            const normalized = headers.map(h => h.trim());
+            const missing = REQUIRED_HEADERS.filter(r => !normalized.includes(r));
+            if (missing.length > 0) {
+              reject(new Error(`Missing required CSV headers: ${missing.join(", ")}`));
+            }
+          })
+          .on("data", (row) => rows.push(row))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV file is empty (no data rows)" });
+      }
+
+      // Row-by-row validation
+      const VALID_OPTIONS = ["A", "B", "C", "D"];
+      const seenQuestions = new Set();
+      const validRows = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const rowNum = i + 2; // +2 for header row + 0-index
+        const r = rows[i];
+        const rowErrors = [];
+
+        const question = r.question?.trim();
+        const optA = r.optionA?.trim();
+        const optB = r.optionB?.trim();
+        const optC = r.optionC?.trim();
+        const optD = r.optionD?.trim();
+        const correct = r.correctOption?.trim().toUpperCase();
+        const marks = parseInt(r.marks?.trim(), 10);
+
+        if (!question) rowErrors.push("question is empty");
+        if (!optA || !optB || !optC || !optD) rowErrors.push("all 4 options are required");
+        if (!VALID_OPTIONS.includes(correct)) rowErrors.push(`correctOption must be A/B/C/D, got "${r.correctOption}"`);
+        if (isNaN(marks) || marks < 1) rowErrors.push(`marks must be >= 1, got "${r.marks}"`);
+
+        // Duplicate detection within file
+        if (question && seenQuestions.has(question.toLowerCase())) {
+          rowErrors.push("duplicate question within file");
+        }
+
+        if (rowErrors.length > 0) {
+          errors.push({ row: rowNum, errors: rowErrors });
+        } else {
+          seenQuestions.add(question.toLowerCase());
+          validRows.push({ question, optA, optB, optC, optD, correct, marks });
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          error: "Validation failed",
+          totalRows: rows.length,
+          errorCount: errors.length,
+          details: errors
+        });
+      }
+
+      // Bulk insert in transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const created = [];
+        for (const row of validRows) {
+          const q = await tx.question.create({
+            data: {
+              examId,
+              type: "MCQ",
+              questionText: row.question,
+              marks: row.marks,
+              options: {
+                create: [
+                  { optionText: row.optA, isCorrect: row.correct === "A" },
+                  { optionText: row.optB, isCorrect: row.correct === "B" },
+                  { optionText: row.optC, isCorrect: row.correct === "C" },
+                  { optionText: row.optD, isCorrect: row.correct === "D" },
+                ]
+              }
+            },
+            include: { options: true }
+          });
+          created.push(q);
+        }
+        return created;
+      }, { maxWait: 10000, timeout: 30000 });
+
+      res.json({
+        message: `Successfully uploaded ${result.length} questions`,
+        count: result.length
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // Teacher views specific exam details (including questions)
 apiRouter.get("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (req, res) => {

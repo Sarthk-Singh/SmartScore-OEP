@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Container, Row, Col, Card, Form, Button, Navbar, Nav, Tab, Tabs, Table } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Navbar, Nav, Tab, Tabs, Table, Badge, CloseButton } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 
@@ -140,6 +140,40 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDeleteGrade = async (gradeId, gradeName) => {
+        if (!window.confirm(`Are you sure you want to delete the grade "${gradeName}"? This will also delete all its courses and exams (if no submissions exist).`)) return;
+        try {
+            await api.delete(`/admin/grades/${gradeId}`);
+            toast.success(`Grade "${gradeName}" deleted successfully!`);
+            fetchGrades();
+            fetchTeachers();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to delete grade');
+        }
+    };
+
+    const handleDeleteCourse = async (courseId, courseName) => {
+        if (!window.confirm(`Are you sure you want to delete the course "${courseName}"? This will also delete all its exams (if no submissions exist).`)) return;
+        try {
+            await api.delete(`/admin/courses/${courseId}`);
+            toast.success(`Course "${courseName}" deleted successfully!`);
+            fetchGrades();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to delete course');
+        }
+    };
+
+    const handleRemoveTeacherGrade = async (teacherId, gradeId, teacherName, gradeName) => {
+        if (!window.confirm(`Remove grade "${gradeName}" from teacher "${teacherName}"?`)) return;
+        try {
+            await api.delete(`/admin/teacher/${teacherId}/grade/${gradeId}`);
+            toast.success(`Removed "${gradeName}" from ${teacherName}`);
+            fetchTeachers();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to remove grade from teacher');
+        }
+    };
+
     return (
         <>
             <Navbar bg="dark" variant="dark" expand="lg">
@@ -199,11 +233,21 @@ const AdminDashboard = () => {
                                 <Card className="mb-4">
                                     <Card.Header as="h5">Teacher Assignments</Card.Header>
                                     <Card.Body>
-                                        <ul>
+                                        <ul className="list-unstyled">
                                             {teachers.map(t => (
-                                                <li key={t.id}>
-                                                    <strong>{t.name}</strong>: {t.teachingGrades && t.teachingGrades.length > 0
-                                                        ? t.teachingGrades.map(g => g.name).join(', ')
+                                                <li key={t.id} className="mb-2">
+                                                    <strong>{t.name}</strong>:{' '}
+                                                    {t.teachingGrades && t.teachingGrades.length > 0
+                                                        ? t.teachingGrades.map(g => (
+                                                            <Badge key={g.id} bg="info" className="me-1 align-middle" style={{ fontSize: '0.85em' }}>
+                                                                {g.name}
+                                                                <CloseButton
+                                                                    variant="white"
+                                                                    style={{ fontSize: '0.5em', marginLeft: '6px', verticalAlign: 'middle' }}
+                                                                    onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}
+                                                                />
+                                                            </Badge>
+                                                        ))
                                                         : <em className="text-muted">No grades assigned</em>}
                                                 </li>
                                             ))}
@@ -292,6 +336,7 @@ const AdminDashboard = () => {
                                         <tr>
                                             <th>Grade</th>
                                             <th>Courses</th>
+                                            <th style={{ width: '80px' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -300,9 +345,28 @@ const AdminDashboard = () => {
                                                 <td>{g.name}</td>
                                                 <td>
                                                     {g.courses && g.courses.length > 0
-                                                        ? g.courses.map(c => <span key={c.id} className="badge bg-secondary me-1">{c.name}</span>)
+                                                        ? g.courses.map(c => (
+                                                            <Badge key={c.id} bg="secondary" className="me-1" style={{ fontSize: '0.85em' }}>
+                                                                {c.name}
+                                                                <CloseButton
+                                                                    variant="white"
+                                                                    style={{ fontSize: '0.5em', marginLeft: '6px', verticalAlign: 'middle' }}
+                                                                    onClick={() => handleDeleteCourse(c.id, c.name)}
+                                                                />
+                                                            </Badge>
+                                                        ))
                                                         : <span className="text-muted">No courses</span>
                                                     }
+                                                </td>
+                                                <td className="text-center">
+                                                    <Button
+                                                        variant="outline-danger"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteGrade(g.id, g.name)}
+                                                        title={`Delete grade ${g.name}`}
+                                                    >
+                                                        🗑️
+                                                    </Button>
                                                 </td>
                                             </tr>
                                         ))}

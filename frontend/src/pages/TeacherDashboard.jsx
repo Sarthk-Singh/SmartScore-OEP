@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Container, Navbar, Nav, Button, Card, Row, Col, Form, Modal, Table } from 'react-bootstrap';
+import { Container, Navbar, Nav, Button, Card, Row, Col, Form, Modal, Table, Alert, ListGroup } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 
@@ -40,6 +40,13 @@ const TeacherDashboard = () => {
     const [option3, setOption3] = useState('');
     const [option4, setOption4] = useState('');
     const [correctOptionIndex, setCorrectOptionIndex] = useState(0);
+
+    // Bulk Upload State
+    const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+    const [bulkUploadExamId, setBulkUploadExamId] = useState(null);
+    const [bulkUploadFile, setBulkUploadFile] = useState(null);
+    const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
+    const [bulkUploadResult, setBulkUploadResult] = useState(null);
 
     const fetchExams = async () => {
         try {
@@ -125,6 +132,54 @@ const TeacherDashboard = () => {
     const openAddQuestion = (examId) => {
         setSelectedExamId(examId);
         setShowAddQuestionModal(true);
+    };
+
+    const openBulkUpload = (examId) => {
+        setBulkUploadExamId(examId);
+        setBulkUploadFile(null);
+        setBulkUploadResult(null);
+        setShowBulkUploadModal(true);
+    };
+
+    const downloadTemplate = () => {
+        const template = 'question,optionA,optionB,optionC,optionD,correctOption,marks\n"What is 2+2?",1,2,3,4,D,1\n';
+        const blob = new Blob([template], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mcq_template.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleBulkUpload = async () => {
+        if (!bulkUploadFile) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+        setBulkUploadLoading(true);
+        setBulkUploadResult(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', bulkUploadFile);
+            formData.append('examId', bulkUploadExamId);
+            const response = await api.post('/teacher/bulk-upload-questions', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setBulkUploadResult({ success: true, message: response.data.message, count: response.data.count });
+            toast.success(response.data.message);
+            fetchExams();
+        } catch (err) {
+            const data = err.response?.data;
+            if (data?.details) {
+                setBulkUploadResult({ success: false, error: data.error, details: data.details, totalRows: data.totalRows, errorCount: data.errorCount });
+            } else {
+                setBulkUploadResult({ success: false, error: data?.error || 'Upload failed' });
+            }
+            toast.error(data?.error || 'Bulk upload failed');
+        } finally {
+            setBulkUploadLoading(false);
+        }
     };
 
     const openManageExam = async (examId) => {
@@ -232,6 +287,9 @@ const TeacherDashboard = () => {
                                     </Card.Text>
                                     <Button variant="outline-primary" size="sm" onClick={() => openAddQuestion(exam.id)} className="me-2">
                                         Add Questions
+                                    </Button>
+                                    <Button variant="outline-success" size="sm" onClick={() => openBulkUpload(exam.id)} className="me-2">
+                                        📤 Bulk Upload
                                     </Button>
                                     <Button variant="outline-secondary" size="sm" onClick={() => openManageExam(exam.id)} className="me-2">
                                         Manage
@@ -436,6 +494,66 @@ const TeacherDashboard = () => {
                                 ))}
                             </tbody>
                         </Table>
+                    )}
+                </Modal.Body>
+            </Modal>
+
+            {/* Bulk Upload Modal */}
+            <Modal show={showBulkUploadModal} onHide={() => setShowBulkUploadModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>📤 Bulk Upload Questions (CSV)</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="info">
+                        <strong>CSV Format:</strong> <code>question,optionA,optionB,optionC,optionD,correctOption,marks</code><br />
+                        <code>correctOption</code> must be <strong>A</strong>, <strong>B</strong>, <strong>C</strong>, or <strong>D</strong>. <code>marks</code> must be ≥ 1.
+                    </Alert>
+
+                    <div className="d-flex align-items-center mb-3">
+                        <Button variant="outline-secondary" size="sm" onClick={downloadTemplate}>
+                            ⬇️ Download Template
+                        </Button>
+                    </div>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>Select CSV File</Form.Label>
+                        <Form.Control
+                            type="file"
+                            accept=".csv"
+                            onChange={e => setBulkUploadFile(e.target.files[0])}
+                        />
+                    </Form.Group>
+
+                    <Button
+                        variant="primary"
+                        onClick={handleBulkUpload}
+                        disabled={bulkUploadLoading || !bulkUploadFile}
+                    >
+                        {bulkUploadLoading ? 'Uploading...' : 'Upload & Validate'}
+                    </Button>
+
+                    {bulkUploadResult && bulkUploadResult.success && (
+                        <Alert variant="success" className="mt-3">
+                            ✅ {bulkUploadResult.message}
+                        </Alert>
+                    )}
+
+                    {bulkUploadResult && !bulkUploadResult.success && (
+                        <Alert variant="danger" className="mt-3">
+                            <strong>❌ {bulkUploadResult.error}</strong>
+                            {bulkUploadResult.details && (
+                                <>
+                                    <p className="mt-2 mb-1">Errors in {bulkUploadResult.errorCount} of {bulkUploadResult.totalRows} rows:</p>
+                                    <ListGroup variant="flush" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                        {bulkUploadResult.details.map((d, idx) => (
+                                            <ListGroup.Item key={idx} className="py-1 px-2" style={{ fontSize: '0.85em' }}>
+                                                <strong>Row {d.row}:</strong> {d.errors.join('; ')}
+                                            </ListGroup.Item>
+                                        ))}
+                                    </ListGroup>
+                                </>
+                            )}
+                        </Alert>
                     )}
                 </Modal.Body>
             </Modal>
