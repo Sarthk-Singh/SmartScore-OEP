@@ -345,6 +345,147 @@ apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, 
   }
 });
 
+// Admin bulk uploads students via CSV
+apiRouter.post("/admin/bulk-upload-students",
+  auth, requireRole("ADMIN"),
+  upload.single("file"),
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    try {
+      // Parse CSV
+      const rows = [];
+      const REQUIRED_HEADERS = [
+        "name", "email", "studentId", "rollNumber", "universityRollNumber", "grade"
+      ];
+
+      await new Promise((resolve, reject) => {
+        const stream = Readable.from(req.file.buffer.toString());
+        stream
+          .pipe(csvParser())
+          .on("headers", (headers) => {
+            const normalized = headers.map(h => h.trim());
+            const missing = REQUIRED_HEADERS.filter(r => !normalized.includes(r));
+            if (missing.length > 0) {
+              reject(new Error(`Missing required CSV headers: ${missing.join(", ")}`));
+            }
+          })
+          .on("data", (row) => rows.push(row))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV file is empty (no data rows)" });
+      }
+
+      // Fetch all grades for name→ID resolution
+      const allGrades = await prisma.grade.findMany();
+      const gradeMap = {};
+      for (const g of allGrades) {
+        gradeMap[g.name.toLowerCase()] = g.id;
+      }
+
+      // Check for existing emails in the database
+      const allEmails = rows.map(r => r.email?.trim().toLowerCase()).filter(Boolean);
+      const existingUsers = await prisma.user.findMany({
+        where: { email: { in: allEmails } },
+        select: { email: true }
+      });
+      const existingEmailSet = new Set(existingUsers.map(u => u.email.toLowerCase()));
+
+      // Row-by-row validation
+      const errors = [];
+      const seenEmails = new Set();
+      const validRows = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const rowNum = i + 2;
+        const r = rows[i];
+        const rowErrors = [];
+
+        const name = r.name?.trim();
+        const email = r.email?.trim().toLowerCase();
+        const sid = r.studentId?.trim();
+        const roll = r.rollNumber?.trim();
+        const uniRoll = r.universityRollNumber?.trim();
+        const gradeName = r.grade?.trim();
+
+        if (!name) rowErrors.push("name is empty");
+        if (!email) rowErrors.push("email is empty");
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) rowErrors.push("invalid email format");
+        if (!sid) rowErrors.push("studentId is empty");
+        if (!roll) rowErrors.push("rollNumber is empty");
+        if (!uniRoll) rowErrors.push("universityRollNumber is empty");
+        if (!gradeName) rowErrors.push("grade is empty");
+        else if (!gradeMap[gradeName.toLowerCase()]) {
+          rowErrors.push(`grade "${gradeName}" not found (available: ${allGrades.map(g => g.name).join(", ")})`);
+        }
+
+        // Duplicate email within file
+        if (email && seenEmails.has(email)) {
+          rowErrors.push("duplicate email within file");
+        }
+        // Duplicate email in database
+        if (email && existingEmailSet.has(email)) {
+          rowErrors.push("email already exists in database");
+        }
+
+        if (rowErrors.length > 0) {
+          errors.push({ row: rowNum, errors: rowErrors });
+        } else {
+          seenEmails.add(email);
+          validRows.push({
+            name, email, studentId: sid, rollNumber: roll,
+            universityRollNumber: uniRoll,
+            gradeId: gradeMap[gradeName.toLowerCase()]
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          error: "Validation failed",
+          totalRows: rows.length,
+          errorCount: errors.length,
+          details: errors
+        });
+      }
+
+      // Hash the default password once
+      const hashedPassword = await bcrypt.hash("portal@123", 10);
+
+      // Bulk insert in transaction
+      const result = await prisma.$transaction(async (tx) => {
+        const created = [];
+        for (const row of validRows) {
+          const student = await tx.user.create({
+            data: {
+              name: row.name,
+              email: row.email,
+              password: hashedPassword,
+              role: "STUDENT",
+              studentId: row.studentId,
+              rollNumber: row.rollNumber,
+              universityRollNumber: row.universityRollNumber,
+              gradeId: row.gradeId
+            }
+          });
+          created.push(student);
+        }
+        return created;
+      }, { maxWait: 10000, timeout: 30000 });
+
+      res.json({
+        message: `Successfully created ${result.length} students (default password: portal@123)`,
+        count: result.length
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // Admin lists all teachers
 apiRouter.get("/admin/teachers", auth, requireRole("ADMIN"), async (req, res) => {
   try {

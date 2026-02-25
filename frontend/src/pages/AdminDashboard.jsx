@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Container, Row, Col, Card, Form, Button, Navbar, Nav, Tab, Tabs, Table, Badge, CloseButton } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Navbar, Nav, Tab, Tabs, Table, Badge, CloseButton, Modal, Alert, ListGroup } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 
@@ -33,6 +33,12 @@ const AdminDashboard = () => {
 
     // Data Lists
     const [grades, setGrades] = useState([]);
+
+    // Bulk Student Upload State
+    const [showBulkStudentModal, setShowBulkStudentModal] = useState(false);
+    const [bulkStudentFile, setBulkStudentFile] = useState(null);
+    const [bulkStudentLoading, setBulkStudentLoading] = useState(false);
+    const [bulkStudentResult, setBulkStudentResult] = useState(null);
 
     useEffect(() => {
         fetchGrades();
@@ -174,6 +180,51 @@ const AdminDashboard = () => {
         }
     };
 
+    const openBulkStudentUpload = () => {
+        setBulkStudentFile(null);
+        setBulkStudentResult(null);
+        setShowBulkStudentModal(true);
+    };
+
+    const downloadStudentTemplate = () => {
+        const template = 'name,email,studentId,rollNumber,universityRollNumber,grade\n"John Doe",john@exam.com,STU001,101,UNI001,BTech\n';
+        const blob = new Blob([template], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'student_template.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleBulkStudentUpload = async () => {
+        if (!bulkStudentFile) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+        setBulkStudentLoading(true);
+        setBulkStudentResult(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', bulkStudentFile);
+            const response = await api.post('/admin/bulk-upload-students', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setBulkStudentResult({ success: true, message: response.data.message, count: response.data.count });
+            toast.success(response.data.message);
+        } catch (err) {
+            const data = err.response?.data;
+            if (data?.details) {
+                setBulkStudentResult({ success: false, error: data.error, details: data.details, totalRows: data.totalRows, errorCount: data.errorCount });
+            } else {
+                setBulkStudentResult({ success: false, error: data?.error || 'Upload failed' });
+            }
+            toast.error(data?.error || 'Bulk upload failed');
+        } finally {
+            setBulkStudentLoading(false);
+        }
+    };
+
     return (
         <>
             <Navbar bg="dark" variant="dark" expand="lg">
@@ -282,6 +333,9 @@ const AdminDashboard = () => {
                                             </Form.Group>
 
                                             <Button variant="success" type="submit">Create Student</Button>
+                                            <Button variant="outline-success" className="ms-2" onClick={openBulkStudentUpload}>
+                                                📤 Bulk Upload Students
+                                            </Button>
                                         </Form>
                                     </Card.Body>
                                 </Card>
@@ -377,6 +431,67 @@ const AdminDashboard = () => {
                     </Tab>
                 </Tabs>
             </Container>
+
+            {/* Bulk Student Upload Modal */}
+            <Modal show={showBulkStudentModal} onHide={() => setShowBulkStudentModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>📤 Bulk Upload Students (CSV)</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="info">
+                        <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade</code><br />
+                        Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
+                        All students get <strong>default password: portal@123</strong>
+                    </Alert>
+
+                    <div className="d-flex align-items-center mb-3">
+                        <Button variant="outline-secondary" size="sm" onClick={downloadStudentTemplate}>
+                            ⬇️ Download Template
+                        </Button>
+                    </div>
+
+                    <Form.Group className="mb-3">
+                        <Form.Label>Select CSV File</Form.Label>
+                        <Form.Control
+                            type="file"
+                            accept=".csv"
+                            onChange={e => setBulkStudentFile(e.target.files[0])}
+                        />
+                    </Form.Group>
+
+                    <Button
+                        variant="primary"
+                        onClick={handleBulkStudentUpload}
+                        disabled={bulkStudentLoading || !bulkStudentFile}
+                    >
+                        {bulkStudentLoading ? 'Uploading...' : 'Upload & Create Students'}
+                    </Button>
+
+                    {bulkStudentResult && bulkStudentResult.success && (
+                        <Alert variant="success" className="mt-3">
+                            ✅ {bulkStudentResult.message}
+                        </Alert>
+                    )}
+
+                    {bulkStudentResult && !bulkStudentResult.success && (
+                        <Alert variant="danger" className="mt-3">
+                            <strong>❌ {bulkStudentResult.error}</strong>
+                            {bulkStudentResult.details && (
+                                <>
+                                    <p className="mt-2 mb-1">Errors in {bulkStudentResult.errorCount} of {bulkStudentResult.totalRows} rows:</p>
+                                    <ListGroup variant="flush" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                        {bulkStudentResult.details.map((d, idx) => (
+                                            <ListGroup.Item key={idx} className="py-1 px-2" style={{ fontSize: '0.85em' }}>
+                                                <strong>Row {d.row}:</strong> {d.errors.join('; ')}
+                                            </ListGroup.Item>
+                                        ))}
+                                    </ListGroup>
+                                </>
+                            )}
+                        </Alert>
+                    )}
+                </Modal.Body>
+            </Modal>
         </>
     );
 };
