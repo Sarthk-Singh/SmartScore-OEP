@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Container, Navbar, Nav, Button, Card, Row, Col, Form, Modal, Table, Alert, ListGroup } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
+import './AdminDashboard.css'; // Shared dark theme CSS
 
 const TeacherDashboard = () => {
     const { user, logout } = useAuth();
@@ -18,18 +18,14 @@ const TeacherDashboard = () => {
 
     // Exam Form State
     const [title, setTitle] = useState('');
-    const [subject, setSubject] = useState('');
-    // const [subject, setSubject] = useState(''); // Replaced by Grade/Course
     const [selectedGradeId, setSelectedGradeId] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [scheduledDate, setScheduledDate] = useState('');
     const [durationMinutes, setDurationMinutes] = useState('');
     const [password, setPassword] = useState('');
     const [deletePassword, setDeletePassword] = useState('');
-
     const [myGrades, setMyGrades] = useState([]);
 
-    // Get courses for selected grade
     const availableCourses = myGrades.find(g => g.id === selectedGradeId)?.courses || [];
 
     // Question Form State
@@ -48,516 +44,407 @@ const TeacherDashboard = () => {
     const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
     const [bulkUploadResult, setBulkUploadResult] = useState(null);
 
+    // Sidebar
+    const [activeTab, setActiveTab] = useState('exams');
+
     const fetchExams = async () => {
-        try {
-            const response = await api.get('/exams');
-            setExams(response.data);
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to fetch exams');
-        }
+        try { const r = await api.get('/exams'); setExams(r.data); }
+        catch (err) { console.error(err); toast.error('Failed to fetch exams'); }
     };
 
     const fetchMyGrades = async () => {
-        try {
-            const response = await api.get('/teacher/my-grades');
-            setMyGrades(response.data);
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to fetch your assigned grades');
-        }
+        try { const r = await api.get('/teacher/my-grades'); setMyGrades(r.data); }
+        catch (err) { console.error(err); toast.error('Failed to fetch grades'); }
     };
 
-    useEffect(() => {
-        fetchExams();
-        fetchMyGrades();
-    }, []);
+    useEffect(() => { fetchExams(); fetchMyGrades(); }, []);
 
     const handleCreateExam = async (e) => {
         e.preventDefault();
         try {
             await api.post('/teacher/create-exam', {
-                title,
-                gradeId: selectedGradeId,
-                courseId: selectedCourseId,
-                scheduledDate,
-                durationMinutes: parseInt(durationMinutes),
-                password
+                title, gradeId: selectedGradeId, courseId: selectedCourseId,
+                scheduledDate, durationMinutes: parseInt(durationMinutes), password
             });
             toast.success('Exam created!');
-            setShowCreateExamModal(false);
-            fetchExams();
-            setTitle('');
-            setSelectedGradeId('');
-            setSelectedCourseId('');
-            setScheduledDate('');
-            setDurationMinutes('');
-            setPassword('');
-        } catch (err) {
-            toast.error(err.response?.data?.error || 'Failed to create exam');
-        }
+            setShowCreateExamModal(false); fetchExams();
+            setTitle(''); setSelectedGradeId(''); setSelectedCourseId('');
+            setScheduledDate(''); setDurationMinutes(''); setPassword('');
+        } catch (err) { toast.error(err.response?.data?.error || 'Failed to create exam'); }
     };
 
     const handleAddQuestion = async (e) => {
         e.preventDefault();
+        const opts = [
+            { optionText: option1, isCorrect: correctOptionIndex === 0 },
+            { optionText: option2, isCorrect: correctOptionIndex === 1 },
+            { optionText: option3, isCorrect: correctOptionIndex === 2 },
+            { optionText: option4, isCorrect: correctOptionIndex === 3 },
+        ];
         try {
-            const optionsData = [
-                { optionText: option1, isCorrect: correctOptionIndex === 0 },
-                { optionText: option2, isCorrect: correctOptionIndex === 1 },
-                { optionText: option3, isCorrect: correctOptionIndex === 2 },
-                { optionText: option4, isCorrect: correctOptionIndex === 3 },
-            ];
-
             await api.post('/teacher/add-question', {
-                examId: selectedExamId,
-                type: 'MCQ',
-                questionText,
-                marks: parseInt(marks),
-                options: optionsData
+                examId: selectedExamId, type: 'MCQ', questionText, marks: parseInt(marks), options: opts
             });
             toast.success('Question added!');
-            // Don't close modal to allow adding more questions? Or close it.
-            // Let's keep it open for convenience or reset form
-            setQuestionText('');
-            setOption1('');
-            setOption2('');
-            setOption3('');
-            setOption4('');
+            setQuestionText(''); setOption1(''); setOption2(''); setOption3(''); setOption4('');
             setCorrectOptionIndex(0);
-        } catch (err) {
-            toast.error(err.response?.data?.error || 'Failed to add question');
-        }
+        } catch (err) { toast.error(err.response?.data?.error || 'Failed to add question'); }
     };
 
-    const openAddQuestion = (examId) => {
-        setSelectedExamId(examId);
-        setShowAddQuestionModal(true);
-    };
+    const openAddQuestion = (examId) => { setSelectedExamId(examId); setShowAddQuestionModal(true); };
 
     const openBulkUpload = (examId) => {
-        setBulkUploadExamId(examId);
-        setBulkUploadFile(null);
-        setBulkUploadResult(null);
+        setBulkUploadExamId(examId); setBulkUploadFile(null); setBulkUploadResult(null);
         setShowBulkUploadModal(true);
     };
 
     const downloadTemplate = () => {
-        const template = 'question,optionA,optionB,optionC,optionD,correctOption,marks\n"What is 2+2?",1,2,3,4,D,1\n';
-        const blob = new Blob([template], { type: 'text/csv' });
+        const t = 'question,optionA,optionB,optionC,optionD,correctOption,marks\n"What is 2+2?",1,2,3,4,D,1\n';
+        const blob = new Blob([t], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'mcq_template.csv';
-        a.click();
+        const a = document.createElement('a'); a.href = url; a.download = 'mcq_template.csv'; a.click();
         URL.revokeObjectURL(url);
     };
 
     const handleBulkUpload = async () => {
-        if (!bulkUploadFile) {
-            toast.error('Please select a CSV file');
-            return;
-        }
-        setBulkUploadLoading(true);
-        setBulkUploadResult(null);
+        if (!bulkUploadFile) { toast.error('Please select a CSV file'); return; }
+        setBulkUploadLoading(true); setBulkUploadResult(null);
         try {
-            const formData = new FormData();
-            formData.append('file', bulkUploadFile);
-            formData.append('examId', bulkUploadExamId);
-            const response = await api.post('/teacher/bulk-upload-questions', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            setBulkUploadResult({ success: true, message: response.data.message, count: response.data.count });
-            toast.success(response.data.message);
-            fetchExams();
+            const fd = new FormData(); fd.append('file', bulkUploadFile); fd.append('examId', bulkUploadExamId);
+            const r = await api.post('/teacher/bulk-upload-questions', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setBulkUploadResult({ success: true, message: r.data.message, count: r.data.count });
+            toast.success(r.data.message); fetchExams();
         } catch (err) {
-            const data = err.response?.data;
-            if (data?.details) {
-                setBulkUploadResult({ success: false, error: data.error, details: data.details, totalRows: data.totalRows, errorCount: data.errorCount });
-            } else {
-                setBulkUploadResult({ success: false, error: data?.error || 'Upload failed' });
-            }
-            toast.error(data?.error || 'Bulk upload failed');
-        } finally {
-            setBulkUploadLoading(false);
-        }
+            const d = err.response?.data;
+            if (d?.details) setBulkUploadResult({ success: false, error: d.error, details: d.details, totalRows: d.totalRows, errorCount: d.errorCount });
+            else setBulkUploadResult({ success: false, error: d?.error || 'Upload failed' });
+            toast.error(d?.error || 'Bulk upload failed');
+        } finally { setBulkUploadLoading(false); }
     };
 
     const openManageExam = async (examId) => {
         setSelectedExamId(examId);
         try {
-            const response = await api.get(`/teacher/exam/${examId}`);
-            setSelectedExamDetails(response.data);
-            setShowManageModal(true);
-        } catch (err) {
-            toast.error("Failed to load exam details");
-        }
+            const r = await api.get(`/teacher/exam/${examId}`);
+            setSelectedExamDetails(r.data); setShowManageModal(true);
+        } catch { toast.error("Failed to load exam details"); }
     };
 
-    const handleDeleteQuestion = async (questionId) => {
-        if (!window.confirm("Are you sure you want to delete this question?")) return;
+    const handleDeleteQuestion = async (qId) => {
+        if (!window.confirm("Delete this question?")) return;
         try {
-            await api.delete(`/teacher/question/${questionId}`);
+            await api.delete(`/teacher/question/${qId}`);
             toast.success("Question deleted");
-            // Refresh details
-            const response = await api.get(`/teacher/exam/${selectedExamId}`);
-            setSelectedExamDetails(response.data);
-            fetchExams(); // Update count in list
-        } catch (err) {
-            toast.error(err.response?.data?.error || "Failed to delete question");
-        }
+            const r = await api.get(`/teacher/exam/${selectedExamId}`);
+            setSelectedExamDetails(r.data); fetchExams();
+        } catch (err) { toast.error(err.response?.data?.error || "Failed to delete question"); }
     };
 
     const handleDeleteExam = async () => {
-        if (!deletePassword) {
-            toast.error("Please enter the password to delete");
-            return;
-        }
-        if (!window.confirm("Are you sure? This will delete the exam and all its questions permanently.")) return;
-
+        if (!deletePassword) { toast.error("Enter the exam password to delete"); return; }
+        if (!window.confirm("Delete this exam and all questions permanently?")) return;
         try {
-            await api.delete(`/teacher/exam/${selectedExamId}`, {
-                data: { password: deletePassword }
-            });
-            toast.success("Exam deleted successfully");
-            setShowManageModal(false);
-            setDeletePassword('');
-            fetchExams();
-        } catch (err) {
-            toast.error(err.response?.data?.error || "Failed to delete exam");
-        }
+            await api.delete(`/teacher/exam/${selectedExamId}`, { data: { password: deletePassword } });
+            toast.success("Exam deleted"); setShowManageModal(false); setDeletePassword(''); fetchExams();
+        } catch (err) { toast.error(err.response?.data?.error || "Failed to delete exam"); }
     };
 
     const openResults = async (exam) => {
-        setSelectedExamId(exam.id);
-        setCurrentExamResultsReleased(exam.resultsReleased);
+        setSelectedExamId(exam.id); setCurrentExamResultsReleased(exam.resultsReleased);
         try {
-            const response = await api.get(`/teacher/exam/${exam.id}/submissions`);
-            setExamSubmissions(response.data);
-            setShowResultsModal(true);
-        } catch (err) {
-            toast.error("Failed to load submissions");
-        }
+            const r = await api.get(`/teacher/exam/${exam.id}/submissions`);
+            setExamSubmissions(r.data); setShowResultsModal(true);
+        } catch { toast.error("Failed to load submissions"); }
     };
 
     const toggleReleaseResults = async () => {
         try {
-            const response = await api.patch(`/teacher/exam/${selectedExamId}/toggle-release`);
-            setCurrentExamResultsReleased(response.data.resultsReleased);
-            toast.success(`Results ${response.data.resultsReleased ? 'Released' : 'Unpublished'}`);
-            fetchExams(); // Update list to reflect status
-        } catch (err) {
-            toast.error("Failed to toggle results");
-        }
+            const r = await api.patch(`/teacher/exam/${selectedExamId}/toggle-release`);
+            setCurrentExamResultsReleased(r.data.resultsReleased);
+            toast.success(`Results ${r.data.resultsReleased ? 'Released' : 'Unpublished'}`);
+            fetchExams();
+        } catch { toast.error("Failed to toggle results"); }
     };
 
-    return (
-        <>
-            <Navbar bg="primary" variant="dark" expand="lg">
-                <Container>
-                    <Navbar.Brand href="#">Teacher Dashboard</Navbar.Brand>
-                    <Navbar.Toggle />
-                    <Navbar.Collapse className="justify-content-end">
-                        <Navbar.Text className="me-3 text-white">
-                            Signed in as: {user?.name}
-                        </Navbar.Text>
-                        <Button variant="light" size="sm" onClick={logout}>Logout</Button>
-                    </Navbar.Collapse>
-                </Container>
-            </Navbar>
+    const optionSetters = [setOption1, setOption2, setOption3, setOption4];
+    const optionValues = [option1, option2, option3, option4];
 
-            <Container className="mt-4">
-                <div className="d-flex justify-content-between align-items-center mb-4">
-                    <h3>Your Exams</h3>
-                    <Button onClick={() => setShowCreateExamModal(true)}>Create New Exam</Button>
+    return (
+        <div className="ad-wrapper">
+            {/* Sidebar */}
+            <div className="ad-sidebar">
+                <div className="ad-sidebar-logo">SS</div>
+                <div className={`ad-sidebar-item ${activeTab === 'exams' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('exams')} title="Exams">📝</div>
+                <div className="ad-sidebar-bottom">
+                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                </div>
+            </div>
+
+            <div className="ad-main">
+                {/* Header */}
+                <div className="ad-header">
+                    <div className="ad-header-left">
+                        <h1>Teacher Dashboard 📚</h1>
+                        <p>Manage your exams, questions, and results</p>
+                    </div>
+                    <div className="ad-header-right">
+                        <span className="ad-badge">👨‍🏫 {user?.name}</span>
+                        <button className="ad-primary-btn" onClick={() => setShowCreateExamModal(true)}>+ Create Exam</button>
+                        <button className="ad-logout-btn" onClick={logout}>Logout</button>
+                    </div>
                 </div>
 
-                <Row>
-                    {exams.map(exam => (
-                        <Col md={4} key={exam.id} className="mb-4">
-                            <Card>
-                                <Card.Body>
-                                    <Card.Title>{exam.title}</Card.Title>
-                                    <Card.Subtitle className="mb-2 text-muted">
-                                        {exam.grade?.name} - {exam.course?.name}
-                                    </Card.Subtitle>
-                                    <Card.Text>
-                                        Date: {new Date(exam.scheduledDate).toLocaleString()}<br />
-                                        Duration: {exam.durationMinutes} mins<br />
-                                        Questions: {exam._count?.questions || 0}
-                                    </Card.Text>
-                                    <Button variant="outline-primary" size="sm" onClick={() => openAddQuestion(exam.id)} className="me-2">
-                                        Add Questions
-                                    </Button>
-                                    <Button variant="outline-success" size="sm" onClick={() => openBulkUpload(exam.id)} className="me-2">
-                                        📤 Bulk Upload
-                                    </Button>
-                                    <Button variant="outline-secondary" size="sm" onClick={() => openManageExam(exam.id)} className="me-2">
-                                        Manage
-                                    </Button>
-                                    <Button variant="info" size="sm" onClick={() => openResults(exam)}>
-                                        Results
-                                    </Button>
-                                </Card.Body>
-                            </Card>
-                        </Col>
-                    ))}
-                </Row>
-            </Container>
-
-            {/* Create Exam Modal */}
-            <Modal show={showCreateExamModal} onHide={() => setShowCreateExamModal(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>Create Exam</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form onSubmit={handleCreateExam}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Title</Form.Label>
-                            <Form.Control required value={title} onChange={e => setTitle(e.target.value)} />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Grade</Form.Label>
-                            <Form.Select required value={selectedGradeId} onChange={e => {
-                                setSelectedGradeId(e.target.value);
-                                setSelectedCourseId(''); // Reset course when grade changes
-                            }}>
-                                <option value="">Select Grade</option>
-                                {myGrades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                            </Form.Select>
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Course</Form.Label>
-                            <Form.Select required value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)} disabled={!selectedGradeId}>
-                                <option value="">Select Course</option>
-                                {availableCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </Form.Select>
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Date & Time</Form.Label>
-                            <Form.Control type="datetime-local" required value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Duration (Minutes)</Form.Label>
-                            <Form.Control type="number" required value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Password (Optional)</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="Enter exam password"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                            />
-                        </Form.Group>
-                        <Button type="submit">Create</Button>
-                    </Form>
-                </Modal.Body>
-            </Modal>
-
-            {/* Add Question Modal */}
-            <Modal show={showAddQuestionModal} onHide={() => setShowAddQuestionModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Question</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form onSubmit={handleAddQuestion}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Question Text</Form.Label>
-                            <Form.Control as="textarea" rows={3} required value={questionText} onChange={e => setQuestionText(e.target.value)} />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Marks</Form.Label>
-                            <Form.Control type="number" required value={marks} onChange={e => setMarks(e.target.value)} />
-                        </Form.Group>
-
-                        <h5>Options</h5>
-                        {[option1, option2, option3, option4].map((opt, idx) => (
-                            <Form.Group key={idx} className="mb-2">
-                                <Form.Check
-                                    type="radio"
-                                    label={`Option ${idx + 1} is Correct`}
-                                    name="correctOption"
-                                    checked={correctOptionIndex === idx}
-                                    onChange={() => setCorrectOptionIndex(idx)}
-                                    className="mb-1"
-                                />
-                                <Form.Control
-                                    type="text"
-                                    placeholder={`Option ${idx + 1}`}
-                                    value={idx === 0 ? option1 : idx === 1 ? option2 : idx === 2 ? option3 : option4}
-                                    onChange={e => {
-                                        if (idx === 0) setOption1(e.target.value);
-                                        if (idx === 1) setOption2(e.target.value);
-                                        if (idx === 2) setOption3(e.target.value);
-                                        if (idx === 3) setOption4(e.target.value);
-                                    }}
-                                    required
-                                />
-                            </Form.Group>
+                {/* Exam Cards */}
+                {exams.length > 0 ? (
+                    <div className="ad-cards-grid">
+                        {exams.map(exam => (
+                            <div key={exam.id} className="ad-exam-card">
+                                <div className="ad-exam-card-title">{exam.title}</div>
+                                <div className="ad-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
+                                <div className="ad-exam-card-info">
+                                    📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
+                                    ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
+                                </div>
+                                <div className="ad-btn-row" style={{ marginTop: 0 }}>
+                                    <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
+                                    <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
+                                    <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
+                                    <button className="ad-warning-btn ad-btn-sm" onClick={() => openResults(exam)}>Results</button>
+                                </div>
+                            </div>
                         ))}
-
-                        <Button type="submit" className="mt-3">Add Question</Button>
-                    </Form>
-                </Modal.Body>
-            </Modal>
-
-            {/* Manage Exam Modal */}
-            <Modal show={showManageModal} onHide={() => setShowManageModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Manage Exam: {selectedExamDetails?.title}</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <h5>Questions</h5>
-                    {selectedExamDetails?.questions?.length === 0 ? (
-                        <p className="text-muted">No questions yet.</p>
-                    ) : (
-                        <Table striped bordered hover size="sm">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Question</th>
-                                    <th>Marks</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {selectedExamDetails?.questions?.map((q, idx) => (
-                                    <tr key={q.id}>
-                                        <td>{idx + 1}</td>
-                                        <td>{q.questionText}</td>
-                                        <td>{q.marks}</td>
-                                        <td>
-                                            <Button variant="danger" size="sm" onClick={() => handleDeleteQuestion(q.id)}>
-                                                Delete
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    )}
-
-                    <hr />
-                    <h5 className="text-danger">Danger Zone</h5>
-                    <Card border="danger" className="p-3">
-                        <Form.Group className="mb-3">
-                            <Form.Label>Enter Exam Password to Delete</Form.Label>
-                            <Form.Control
-                                type="password"
-                                placeholder="Exam Password"
-                                value={deletePassword}
-                                onChange={e => setDeletePassword(e.target.value)}
-                            />
-                        </Form.Group>
-                        <Button variant="danger" onClick={handleDeleteExam}>
-                            Delete Entire Exam
-                        </Button>
-                    </Card>
-                </Modal.Body>
-            </Modal>
-
-            {/* Results Modal */}
-            <Modal show={showResultsModal} onHide={() => setShowResultsModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Exam Results</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h5>Submissions: {examSubmissions.length}</h5>
-                        <Button
-                            variant={currentExamResultsReleased ? "warning" : "success"}
-                            onClick={toggleReleaseResults}
-                        >
-                            {currentExamResultsReleased ? "Unpublish Results" : "Release Results"}
-                        </Button>
                     </div>
-                    {examSubmissions.length === 0 ? (
-                        <p className="text-muted">No submissions yet.</p>
-                    ) : (
-                        <Table striped bordered hover>
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Email</th>
-                                    <th>Score</th>
-                                    <th>Submitted At</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {examSubmissions.map(sub => (
-                                    <tr key={sub.id}>
-                                        <td>{sub.student.name}</td>
-                                        <td>{sub.student.email}</td>
-                                        <td>{sub.totalScore}</td>
-                                        <td>{new Date(sub.submittedAt).toLocaleString()}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    )}
-                </Modal.Body>
-            </Modal>
-
-            {/* Bulk Upload Modal */}
-            <Modal show={showBulkUploadModal} onHide={() => setShowBulkUploadModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>📤 Bulk Upload Questions (CSV)</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Alert variant="info">
-                        <strong>CSV Format:</strong> <code>question,optionA,optionB,optionC,optionD,correctOption,marks</code><br />
-                        <code>correctOption</code> must be <strong>A</strong>, <strong>B</strong>, <strong>C</strong>, or <strong>D</strong>. <code>marks</code> must be ≥ 1.
-                    </Alert>
-
-                    <div className="d-flex align-items-center mb-3">
-                        <Button variant="outline-secondary" size="sm" onClick={downloadTemplate}>
-                            ⬇️ Download Template
-                        </Button>
+                ) : (
+                    <div className="ad-section">
+                        <div className="ad-empty">
+                            <div className="ad-empty-icon">📝</div>
+                            <p>No exams yet. Click "Create Exam" to get started!</p>
+                        </div>
                     </div>
+                )}
+            </div>
 
-                    <Form.Group className="mb-3">
-                        <Form.Label>Select CSV File</Form.Label>
-                        <Form.Control
-                            type="file"
-                            accept=".csv"
-                            onChange={e => setBulkUploadFile(e.target.files[0])}
-                        />
-                    </Form.Group>
+            {/* ========== CREATE EXAM MODAL ========== */}
+            {showCreateExamModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowCreateExamModal(false)}>
+                    <div className="ad-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>📝 Create Exam</span>
+                            <button className="ad-modal-close" onClick={() => setShowCreateExamModal(false)}>✕</button>
+                        </div>
+                        <form onSubmit={handleCreateExam}>
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Title</label>
+                                <input className="ad-input" required value={title} onChange={e => setTitle(e.target.value)} />
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Grade</label>
+                                <select className="ad-select" required value={selectedGradeId} onChange={e => { setSelectedGradeId(e.target.value); setSelectedCourseId(''); }}>
+                                    <option value="">Select Grade</option>
+                                    {myGrades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Course</label>
+                                <select className="ad-select" required value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)} disabled={!selectedGradeId}>
+                                    <option value="">Select Course</option>
+                                    {availableCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="ad-form-grid" style={{ marginBottom: 12 }}>
+                                <div className="ad-input-group">
+                                    <label>Date & Time</label>
+                                    <input className="ad-input" type="datetime-local" required value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Duration (Minutes)</label>
+                                    <input className="ad-input" type="number" required value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>Password (Optional)</label>
+                                <input className="ad-input" type="text" placeholder="Enter exam password" value={password} onChange={e => setPassword(e.target.value)} />
+                            </div>
+                            <button type="submit" className="ad-primary-btn">Create Exam</button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
-                    <Button
-                        variant="primary"
-                        onClick={handleBulkUpload}
-                        disabled={bulkUploadLoading || !bulkUploadFile}
-                    >
-                        {bulkUploadLoading ? 'Uploading...' : 'Upload & Validate'}
-                    </Button>
+            {/* ========== ADD QUESTION MODAL ========== */}
+            {showAddQuestionModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowAddQuestionModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>➕ Add Question</span>
+                            <button className="ad-modal-close" onClick={() => setShowAddQuestionModal(false)}>✕</button>
+                        </div>
+                        <form onSubmit={handleAddQuestion}>
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Question Text</label>
+                                <textarea className="ad-textarea" rows={3} required value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>Marks</label>
+                                <input className="ad-input" type="number" required value={marks} onChange={e => setMarks(e.target.value)} />
+                            </div>
 
-                    {bulkUploadResult && bulkUploadResult.success && (
-                        <Alert variant="success" className="mt-3">
-                            ✅ {bulkUploadResult.message}
-                        </Alert>
-                    )}
+                            <label style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12, display: 'block' }}>Options</label>
+                            <div className="ad-radio-group" style={{ marginBottom: 16 }}>
+                                {[0, 1, 2, 3].map(idx => (
+                                    <div key={idx} className="ad-radio-item">
+                                        <input type="radio" name="correctOpt" checked={correctOptionIndex === idx}
+                                            onChange={() => setCorrectOptionIndex(idx)} />
+                                        <label>Correct</label>
+                                        <input className="ad-input" placeholder={`Option ${idx + 1}`} required
+                                            value={optionValues[idx]} onChange={e => optionSetters[idx](e.target.value)} />
+                                    </div>
+                                ))}
+                            </div>
+                            <button type="submit" className="ad-primary-btn">Add Question</button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
-                    {bulkUploadResult && !bulkUploadResult.success && (
-                        <Alert variant="danger" className="mt-3">
-                            <strong>❌ {bulkUploadResult.error}</strong>
-                            {bulkUploadResult.details && (
-                                <>
-                                    <p className="mt-2 mb-1">Errors in {bulkUploadResult.errorCount} of {bulkUploadResult.totalRows} rows:</p>
-                                    <ListGroup variant="flush" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                        {bulkUploadResult.details.map((d, idx) => (
-                                            <ListGroup.Item key={idx} className="py-1 px-2" style={{ fontSize: '0.85em' }}>
-                                                <strong>Row {d.row}:</strong> {d.errors.join('; ')}
-                                            </ListGroup.Item>
-                                        ))}
-                                    </ListGroup>
-                                </>
-                            )}
-                        </Alert>
-                    )}
-                </Modal.Body>
-            </Modal>
-        </>
+            {/* ========== MANAGE EXAM MODAL ========== */}
+            {showManageModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowManageModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>⚙️ Manage: {selectedExamDetails?.title}</span>
+                            <button className="ad-modal-close" onClick={() => setShowManageModal(false)}>✕</button>
+                        </div>
+
+                        <label style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12, display: 'block' }}>Questions</label>
+                        {selectedExamDetails?.questions?.length === 0 ? (
+                            <p className="ad-no-data">No questions yet.</p>
+                        ) : (
+                            <table className="ad-table" style={{ marginBottom: 16 }}>
+                                <thead>
+                                    <tr><th>#</th><th>Question</th><th>Marks</th><th>Action</th></tr>
+                                </thead>
+                                <tbody>
+                                    {selectedExamDetails?.questions?.map((q, idx) => (
+                                        <tr key={q.id}>
+                                            <td>{idx + 1}</td>
+                                            <td>{q.questionText}</td>
+                                            <td>{q.marks}</td>
+                                            <td><button className="ad-danger-btn ad-btn-sm" onClick={() => handleDeleteQuestion(q.id)}>Delete</button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+
+                        <div className="ad-danger-zone">
+                            <div className="ad-danger-zone-title">⚠️ Danger Zone</div>
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Enter Exam Password to Delete</label>
+                                <input className="ad-input" type="password" placeholder="Exam Password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} />
+                            </div>
+                            <button className="ad-danger-btn" onClick={handleDeleteExam}>Delete Entire Exam</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========== RESULTS MODAL ========== */}
+            {showResultsModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowResultsModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>📊 Exam Results</span>
+                            <button className="ad-modal-close" onClick={() => setShowResultsModal(false)}>✕</button>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <span style={{ fontSize: 14, color: '#fff' }}>Submissions: <strong>{examSubmissions.length}</strong></span>
+                            <button
+                                className={currentExamResultsReleased ? 'ad-warning-btn' : 'ad-success-btn'}
+                                onClick={toggleReleaseResults}
+                            >
+                                {currentExamResultsReleased ? 'Unpublish Results' : 'Release Results'}
+                            </button>
+                        </div>
+
+                        {examSubmissions.length === 0 ? (
+                            <p className="ad-no-data">No submissions yet.</p>
+                        ) : (
+                            <table className="ad-table">
+                                <thead>
+                                    <tr><th>Student</th><th>Email</th><th>Score</th><th>Submitted</th></tr>
+                                </thead>
+                                <tbody>
+                                    {examSubmissions.map(sub => (
+                                        <tr key={sub.id}>
+                                            <td style={{ color: '#fff', fontWeight: 500 }}>{sub.student.name}</td>
+                                            <td>{sub.student.email}</td>
+                                            <td style={{ fontWeight: 600, color: '#818cf8' }}>{sub.totalScore}</td>
+                                            <td>{new Date(sub.submittedAt).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ========== BULK UPLOAD MODAL ========== */}
+            {showBulkUploadModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowBulkUploadModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>📤 Bulk Upload Questions (CSV)</span>
+                            <button className="ad-modal-close" onClick={() => setShowBulkUploadModal(false)}>✕</button>
+                        </div>
+
+                        <div className="ad-alert info">
+                            <span>
+                                <strong>CSV Format:</strong> <code>question,optionA,optionB,optionC,optionD,correctOption,marks</code><br />
+                                <code>correctOption</code> must be <strong>A</strong>, <strong>B</strong>, <strong>C</strong>, or <strong>D</strong>. <code>marks</code> must be ≥ 1.
+                            </span>
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
+                            <button className="ad-secondary-btn" onClick={downloadTemplate}>⬇️ Download Template</button>
+                        </div>
+
+                        <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                            <label>Select CSV File</label>
+                            <input type="file" accept=".csv" className="ad-file-input" onChange={e => setBulkUploadFile(e.target.files[0])} />
+                        </div>
+
+                        <button className="ad-primary-btn" onClick={handleBulkUpload}
+                            disabled={bulkUploadLoading || !bulkUploadFile}
+                            style={{ opacity: (bulkUploadLoading || !bulkUploadFile) ? 0.5 : 1 }}>
+                            {bulkUploadLoading ? 'Uploading...' : 'Upload & Validate'}
+                        </button>
+
+                        {bulkUploadResult?.success && (
+                            <div className="ad-alert success" style={{ marginTop: 16 }}>✅ {bulkUploadResult.message}</div>
+                        )}
+                        {bulkUploadResult && !bulkUploadResult.success && (
+                            <div className="ad-alert danger" style={{ marginTop: 16, flexDirection: 'column' }}>
+                                <strong>❌ {bulkUploadResult.error}</strong>
+                                {bulkUploadResult.details && (
+                                    <>
+                                        <p style={{ margin: '8px 0 4px' }}>Errors in {bulkUploadResult.errorCount} of {bulkUploadResult.totalRows} rows:</p>
+                                        <div className="ad-error-list">
+                                            {bulkUploadResult.details.map((d, idx) => (
+                                                <div key={idx} className="ad-error-item"><strong>Row {d.row}:</strong> {d.errors.join('; ')}</div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

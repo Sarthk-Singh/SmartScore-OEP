@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Container, Row, Col, Card, Form, Button, Navbar, Nav, Tab, Tabs, Table, Badge, CloseButton, Modal, Alert, ListGroup } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
+import './AdminDashboard.css';
 
 const AdminDashboard = () => {
     const { user, logout } = useAuth();
@@ -15,7 +15,6 @@ const AdminDashboard = () => {
     // Student State
     const [studentName, setStudentName] = useState('');
     const [studentEmail, setStudentEmail] = useState('');
-    const [studentPassword, setStudentPassword] = useState('');
     const [studentId, setStudentId] = useState('');
     const [rollNumber, setRollNumber] = useState('');
     const [uniRollNumber, setUniRollNumber] = useState('');
@@ -40,6 +39,9 @@ const AdminDashboard = () => {
     const [bulkStudentFile, setBulkStudentFile] = useState(null);
     const [bulkStudentLoading, setBulkStudentLoading] = useState(false);
     const [bulkStudentResult, setBulkStudentResult] = useState(null);
+
+    // Sidebar
+    const [activeTab, setActiveTab] = useState('users');
 
     useEffect(() => {
         fetchGrades();
@@ -67,15 +69,9 @@ const AdminDashboard = () => {
     const handleCreateTeacher = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/admin/create-teacher', {
-                name: teacherName,
-                email: teacherEmail,
-                password: teacherPassword,
-            });
+            await api.post('/admin/create-teacher', { name: teacherName, email: teacherEmail, password: teacherPassword });
             toast.success('Teacher created successfully!');
-            setTeacherName('');
-            setTeacherEmail('');
-            setTeacherPassword('');
+            setTeacherName(''); setTeacherEmail(''); setTeacherPassword('');
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create teacher');
         }
@@ -85,23 +81,13 @@ const AdminDashboard = () => {
         e.preventDefault();
         try {
             await api.post('/admin/create-student', {
-                name: studentName,
-                email: studentEmail,
-                password: "portal@123",
-                studentId,
-                rollNumber,
-                universityRollNumber: uniRollNumber,
-                gradeId: selectedGradeId,
-                semester: semester || null
+                name: studentName, email: studentEmail, password: "portal@123",
+                studentId, rollNumber, universityRollNumber: uniRollNumber,
+                gradeId: selectedGradeId, semester: semester || null
             });
             toast.success('Student created! Default password: portal@123');
-            setStudentName('');
-            setStudentEmail('');
-            setStudentId('');
-            setRollNumber('');
-            setUniRollNumber('');
-            setSelectedGradeId('');
-            setSemester('');
+            setStudentName(''); setStudentEmail(''); setStudentId('');
+            setRollNumber(''); setUniRollNumber(''); setSelectedGradeId(''); setSemester('');
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create student');
         }
@@ -124,8 +110,7 @@ const AdminDashboard = () => {
         try {
             await api.post('/admin/courses', { name: courseName, gradeId: courseGradeId });
             toast.success('Course created!');
-            setCourseName('');
-            setCourseGradeId('');
+            setCourseName(''); setCourseGradeId('');
             fetchGrades();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create course');
@@ -135,50 +120,45 @@ const AdminDashboard = () => {
     const handleAssignTeacher = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/admin/assign-teacher-grade', {
-                teacherId: assignTeacherId,
-                gradeId: assignGradeId
-            });
+            await api.post('/admin/assign-teacher-grade', { teacherId: assignTeacherId, gradeId: assignGradeId });
             toast.success('Teacher assigned to grade!');
-            setAssignTeacherId('');
-            setAssignGradeId('');
-            fetchTeachers(); // Refresh list to show updated assignments
+            setAssignTeacherId(''); setAssignGradeId('');
+            fetchTeachers();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to assign teacher');
         }
     };
 
-    const handleDeleteGrade = async (gradeId, gradeName) => {
-        if (!window.confirm(`Are you sure you want to delete the grade "${gradeName}"? This will also delete all its courses and exams (if no submissions exist).`)) return;
+    const handleDeleteGrade = async (gradeId, name) => {
+        if (!window.confirm(`Delete grade "${name}"? This deletes all courses and exams (if no submissions).`)) return;
         try {
             await api.delete(`/admin/grades/${gradeId}`);
-            toast.success(`Grade "${gradeName}" deleted successfully!`);
-            fetchGrades();
-            fetchTeachers();
+            toast.success(`Grade "${name}" deleted!`);
+            fetchGrades(); fetchTeachers();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to delete grade');
         }
     };
 
-    const handleDeleteCourse = async (courseId, courseName) => {
-        if (!window.confirm(`Are you sure you want to delete the course "${courseName}"? This will also delete all its exams (if no submissions exist).`)) return;
+    const handleDeleteCourse = async (courseId, name) => {
+        if (!window.confirm(`Delete course "${name}"? This deletes all exams (if no submissions).`)) return;
         try {
             await api.delete(`/admin/courses/${courseId}`);
-            toast.success(`Course "${courseName}" deleted successfully!`);
+            toast.success(`Course "${name}" deleted!`);
             fetchGrades();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to delete course');
         }
     };
 
-    const handleRemoveTeacherGrade = async (teacherId, gradeId, teacherName, gradeName) => {
-        if (!window.confirm(`Remove grade "${gradeName}" from teacher "${teacherName}"?`)) return;
+    const handleRemoveTeacherGrade = async (teacherId, gradeId, tName, gName) => {
+        if (!window.confirm(`Remove "${gName}" from "${tName}"?`)) return;
         try {
             await api.delete(`/admin/teacher/${teacherId}/grade/${gradeId}`);
-            toast.success(`Removed "${gradeName}" from ${teacherName}`);
+            toast.success(`Removed "${gName}" from ${tName}`);
             fetchTeachers();
         } catch (err) {
-            toast.error(err.response?.data?.error || 'Failed to remove grade from teacher');
+            toast.error(err.response?.data?.error || 'Failed to remove grade');
         }
     };
 
@@ -192,18 +172,12 @@ const AdminDashboard = () => {
         const template = 'name,email,studentId,rollNumber,universityRollNumber,grade,semester\n"John Doe",john@exam.com,STU001,101,UNI001,BTech,1\n';
         const blob = new Blob([template], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'student_template.csv';
-        a.click();
+        const a = document.createElement('a'); a.href = url; a.download = 'student_template.csv'; a.click();
         URL.revokeObjectURL(url);
     };
 
     const handleBulkStudentUpload = async () => {
-        if (!bulkStudentFile) {
-            toast.error('Please select a CSV file');
-            return;
-        }
+        if (!bulkStudentFile) { toast.error('Please select a CSV file'); return; }
         setBulkStudentLoading(true);
         setBulkStudentResult(null);
         try {
@@ -228,283 +202,302 @@ const AdminDashboard = () => {
     };
 
     return (
-        <>
-            <Navbar bg="dark" variant="dark" expand="lg">
-                <Container>
-                    <Navbar.Brand href="#">Admin Portal</Navbar.Brand>
-                    <Navbar.Toggle />
-                    <Navbar.Collapse className="justify-content-end">
-                        <Navbar.Text className="me-3">Signed in as: {user?.name}</Navbar.Text>
-                        <Button variant="outline-light" size="sm" onClick={logout}>Logout</Button>
-                    </Navbar.Collapse>
-                </Container>
-            </Navbar>
+        <div className="ad-wrapper">
+            {/* Sidebar */}
+            <div className="ad-sidebar">
+                <div className="ad-sidebar-logo">SS</div>
+                <div className={`ad-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('users')} title="Manage Users">👥</div>
+                <div className={`ad-sidebar-item ${activeTab === 'structure' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('structure')} title="Manage Structure">🏗️</div>
+                <div className="ad-sidebar-bottom">
+                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                </div>
+            </div>
 
-            <Container className="mt-4">
-                <Tabs defaultActiveKey="users" id="admin-tabs" className="mb-3">
+            <div className="ad-main">
+                {/* Header */}
+                <div className="ad-header">
+                    <div className="ad-header-left">
+                        <h1>Admin Portal 🛡️</h1>
+                        <p>Manage users, grades, and courses</p>
+                    </div>
+                    <div className="ad-header-right">
+                        <span className="ad-badge">🔑 {user?.name}</span>
+                        <button className="ad-logout-btn" onClick={logout}>Logout</button>
+                    </div>
+                </div>
 
-                    <Tab eventKey="users" title="Manage Users">
-                        <Row>
-                            <Col md={6}>
-                                <Card className="mb-4">
-                                    <Card.Header as="h5">Create Teacher</Card.Header>
-                                    <Card.Body>
-                                        <Form onSubmit={handleCreateTeacher}>
-                                            <Form.Group className="mb-3"><Form.Label>Name</Form.Label><Form.Control required value={teacherName} onChange={e => setTeacherName(e.target.value)} /></Form.Group>
-                                            <Form.Group className="mb-3"><Form.Label>Email</Form.Label><Form.Control type="email" required value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)} /></Form.Group>
-                                            <Form.Group className="mb-3"><Form.Label>Password</Form.Label><Form.Control type="password" required value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} /></Form.Group>
-                                            <Button type="submit">Create Teacher</Button>
-                                        </Form>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
+                {/* ========== USERS TAB ========== */}
+                {activeTab === 'users' && (
+                    <>
+                        <div className="ad-content-grid">
+                            {/* Create Teacher */}
+                            <div className="ad-section">
+                                <div className="ad-section-header">
+                                    <div className="ad-section-title"><span className="icon">👨‍🏫</span> Create Teacher</div>
+                                </div>
+                                <form onSubmit={handleCreateTeacher}>
+                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                        <label>Name</label>
+                                        <input className="ad-input" required value={teacherName} onChange={e => setTeacherName(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                        <label>Email</label>
+                                        <input className="ad-input" type="email" required value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                        <label>Password</label>
+                                        <input className="ad-input" type="password" required value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} />
+                                    </div>
+                                    <button type="submit" className="ad-primary-btn">Create Teacher</button>
+                                </form>
+                            </div>
 
-                            <Col md={6}>
-                                <Card className="mb-4">
-                                    <Card.Header as="h5">Assign Teacher to Grade</Card.Header>
-                                    <Card.Body>
-                                        <Form onSubmit={handleAssignTeacher}>
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Teacher</Form.Label>
-                                                <Form.Select required value={assignTeacherId} onChange={e => setAssignTeacherId(e.target.value)}>
-                                                    <option value="">Select Teacher</option>
-                                                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
-                                                </Form.Select>
-                                            </Form.Group>
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Grade</Form.Label>
-                                                <Form.Select required value={assignGradeId} onChange={e => setAssignGradeId(e.target.value)}>
-                                                    <option value="">Select Grade</option>
-                                                    {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                                </Form.Select>
-                                            </Form.Group>
-                                            <Button type="submit" variant="info" className="text-white">Assign Grade</Button>
-                                        </Form>
-                                    </Card.Body>
-                                </Card>
+                            {/* Assign Teacher + Assignments */}
+                            <div>
+                                <div className="ad-section">
+                                    <div className="ad-section-header">
+                                        <div className="ad-section-title"><span className="icon">🔗</span> Assign Teacher to Grade</div>
+                                    </div>
+                                    <form onSubmit={handleAssignTeacher}>
+                                        <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                            <label>Teacher</label>
+                                            <select className="ad-select" required value={assignTeacherId} onChange={e => setAssignTeacherId(e.target.value)}>
+                                                <option value="">Select Teacher</option>
+                                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                            <label>Grade</label>
+                                            <select className="ad-select" required value={assignGradeId} onChange={e => setAssignGradeId(e.target.value)}>
+                                                <option value="">Select Grade</option>
+                                                {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <button type="submit" className="ad-info-btn">Assign Grade</button>
+                                    </form>
+                                </div>
 
-                                <Card className="mb-4">
-                                    <Card.Header as="h5">Teacher Assignments</Card.Header>
-                                    <Card.Body>
-                                        <ul className="list-unstyled">
-                                            {teachers.map(t => (
-                                                <li key={t.id} className="mb-2">
-                                                    <strong>{t.name}</strong>:{' '}
-                                                    {t.teachingGrades && t.teachingGrades.length > 0
-                                                        ? t.teachingGrades.map(g => (
-                                                            <Badge key={g.id} bg="info" className="me-1 align-middle" style={{ fontSize: '0.85em' }}>
-                                                                {g.name}
-                                                                <CloseButton
-                                                                    variant="white"
-                                                                    style={{ fontSize: '0.5em', marginLeft: '6px', verticalAlign: 'middle' }}
-                                                                    onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}
-                                                                />
-                                                            </Badge>
-                                                        ))
-                                                        : <em className="text-muted">No grades assigned</em>}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        </Row>
+                                <div className="ad-section">
+                                    <div className="ad-section-header">
+                                        <div className="ad-section-title"><span className="icon">📋</span> Teacher Assignments</div>
+                                    </div>
+                                    {teachers.map(t => (
+                                        <div key={t.id} className="ad-assignment-item">
+                                            <span className="ad-assignment-name">{t.name}</span>
+                                            <div className="ad-assignment-badges">
+                                                {t.teachingGrades && t.teachingGrades.length > 0
+                                                    ? t.teachingGrades.map(g => (
+                                                        <span key={g.id} className="ad-badge-pill">
+                                                            {g.name}
+                                                            <button className="ad-badge-remove" onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}>✕</button>
+                                                        </span>
+                                                    ))
+                                                    : <span className="ad-no-data">No grades assigned</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
 
-                        <Row>
-                            <Col md={12}>
-                                <Card className="mb-4">
-                                    <Card.Header as="h5">Create Student</Card.Header>
-                                    <Card.Body>
-                                        <Form onSubmit={handleCreateStudent}>
-                                            <Row>
-                                                <Col><Form.Group className="mb-3"><Form.Label>Name</Form.Label><Form.Control required value={studentName} onChange={e => setStudentName(e.target.value)} /></Form.Group></Col>
-                                                <Col><Form.Group className="mb-3"><Form.Label>Email</Form.Label><Form.Control type="email" required value={studentEmail} onChange={e => setStudentEmail(e.target.value)} /></Form.Group></Col>
-                                            </Row>
-                                            <Row>
-                                                <Col><Form.Group className="mb-3"><Form.Label>Student ID</Form.Label><Form.Control required value={studentId} onChange={e => setStudentId(e.target.value)} /></Form.Group></Col>
-                                                <Col><Form.Group className="mb-3"><Form.Label>Roll No</Form.Label><Form.Control required value={rollNumber} onChange={e => setRollNumber(e.target.value)} /></Form.Group></Col>
-                                            </Row>
-                                            <Form.Group className="mb-3"><Form.Label>Univ Roll No</Form.Label><Form.Control required value={uniRollNumber} onChange={e => setUniRollNumber(e.target.value)} /></Form.Group>
+                        {/* Create Student */}
+                        <div className="ad-section">
+                            <div className="ad-section-header">
+                                <div className="ad-section-title"><span className="icon">🎓</span> Create Student</div>
+                            </div>
+                            <form onSubmit={handleCreateStudent}>
+                                <div className="ad-form-grid">
+                                    <div className="ad-input-group">
+                                        <label>Name</label>
+                                        <input className="ad-input" required value={studentName} onChange={e => setStudentName(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group">
+                                        <label>Email</label>
+                                        <input className="ad-input" type="email" required value={studentEmail} onChange={e => setStudentEmail(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group">
+                                        <label>Student ID</label>
+                                        <input className="ad-input" required value={studentId} onChange={e => setStudentId(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group">
+                                        <label>Roll Number</label>
+                                        <input className="ad-input" required value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group full-width">
+                                        <label>University Roll Number</label>
+                                        <input className="ad-input" required value={uniRollNumber} onChange={e => setUniRollNumber(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group">
+                                        <label>Grade</label>
+                                        <select className="ad-select" required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
+                                            <option value="">Select Grade</option>
+                                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="ad-input-group">
+                                        <label>Semester</label>
+                                        <input className="ad-input" type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="ad-btn-row">
+                                    <button type="submit" className="ad-success-btn">Create Student</button>
+                                    <button type="button" className="ad-secondary-btn" onClick={openBulkStudentUpload}>📤 Bulk Upload Students</button>
+                                </div>
+                            </form>
+                        </div>
+                    </>
+                )}
 
-                                            <Row>
-                                                <Col>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Grade</Form.Label>
-                                                        <Form.Select required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
-                                                            <option value="">Select Grade</option>
-                                                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                                        </Form.Select>
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Semester</Form.Label>
-                                                        <Form.Control type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
-                                                    </Form.Group>
-                                                </Col>
-                                            </Row>
+                {/* ========== STRUCTURE TAB ========== */}
+                {activeTab === 'structure' && (
+                    <>
+                        <div className="ad-content-grid">
+                            {/* Add Grade */}
+                            <div className="ad-section">
+                                <div className="ad-section-header">
+                                    <div className="ad-section-title"><span className="icon">📚</span> Add Grade</div>
+                                </div>
+                                <form onSubmit={handleCreateGrade}>
+                                    <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                        <label>Grade Name (e.g., BTech, BSc)</label>
+                                        <input className="ad-input" required value={gradeName} onChange={e => setGradeName(e.target.value)} />
+                                    </div>
+                                    <button type="submit" className="ad-primary-btn">Add Grade</button>
+                                </form>
+                            </div>
 
-                                            <Button variant="success" type="submit">Create Student</Button>
-                                            <Button variant="outline-success" className="ms-2" onClick={openBulkStudentUpload}>
-                                                📤 Bulk Upload Students
-                                            </Button>
-                                        </Form>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        </Row>
-                    </Tab>
+                            {/* Add Course */}
+                            <div className="ad-section">
+                                <div className="ad-section-header">
+                                    <div className="ad-section-title"><span className="icon">📖</span> Add Course</div>
+                                </div>
+                                <form onSubmit={handleCreateCourse}>
+                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                        <label>Course Name (e.g., Java, Python)</label>
+                                        <input className="ad-input" required value={courseName} onChange={e => setCourseName(e.target.value)} />
+                                    </div>
+                                    <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                        <label>Assign to Grade</label>
+                                        <select className="ad-select" required value={courseGradeId} onChange={e => setCourseGradeId(e.target.value)}>
+                                            <option value="">Select Grade</option>
+                                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <button type="submit" className="ad-primary-btn">Add Course</button>
+                                </form>
+                            </div>
+                        </div>
 
-                    <Tab eventKey="structure" title="Manage Structure">
-                        <Row>
-                            <Col md={6}>
-                                <Card className="mb-4">
-                                    <Card.Header>Add Grade</Card.Header>
-                                    <Card.Body>
-                                        <Form onSubmit={handleCreateGrade}>
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Grade Name (e.g., BTech, BSc)</Form.Label>
-                                                <Form.Control required value={gradeName} onChange={e => setGradeName(e.target.value)} />
-                                            </Form.Group>
-                                            <Button type="submit">Add Grade</Button>
-                                        </Form>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                            <Col md={6}>
-                                <Card className="mb-4">
-                                    <Card.Header>Add Course</Card.Header>
-                                    <Card.Body>
-                                        <Form onSubmit={handleCreateCourse}>
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Course Name (e.g., Java, Python)</Form.Label>
-                                                <Form.Control required value={courseName} onChange={e => setCourseName(e.target.value)} />
-                                            </Form.Group>
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Assign to Grade</Form.Label>
-                                                <Form.Select required value={courseGradeId} onChange={e => setCourseGradeId(e.target.value)}>
-                                                    <option value="">Select Grade</option>
-                                                    {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                                </Form.Select>
-                                            </Form.Group>
-                                            <Button type="submit">Add Course</Button>
-                                        </Form>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        </Row>
-
-                        <Card>
-                            <Card.Header>Current Structure</Card.Header>
-                            <Card.Body>
-                                <Table striped bordered hover>
+                        {/* Current Structure Table */}
+                        <div className="ad-section">
+                            <div className="ad-section-header">
+                                <div className="ad-section-title"><span className="icon">🏛️</span> Current Structure</div>
+                            </div>
+                            {grades.length > 0 ? (
+                                <table className="ad-table">
                                     <thead>
                                         <tr>
                                             <th>Grade</th>
                                             <th>Courses</th>
-                                            <th style={{ width: '80px' }}>Actions</th>
+                                            <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {grades.map(g => (
                                             <tr key={g.id}>
-                                                <td>{g.name}</td>
+                                                <td style={{ fontWeight: 500, color: '#fff' }}>{g.name}</td>
                                                 <td>
                                                     {g.courses && g.courses.length > 0
                                                         ? g.courses.map(c => (
-                                                            <Badge key={c.id} bg="secondary" className="me-1" style={{ fontSize: '0.85em' }}>
+                                                            <span key={c.id} className="ad-badge-pill secondary">
                                                                 {c.name}
-                                                                <CloseButton
-                                                                    variant="white"
-                                                                    style={{ fontSize: '0.5em', marginLeft: '6px', verticalAlign: 'middle' }}
-                                                                    onClick={() => handleDeleteCourse(c.id, c.name)}
-                                                                />
-                                                            </Badge>
+                                                                <button className="ad-badge-remove" onClick={() => handleDeleteCourse(c.id, c.name)}>✕</button>
+                                                            </span>
                                                         ))
-                                                        : <span className="text-muted">No courses</span>
+                                                        : <span className="ad-no-data">No courses</span>
                                                     }
                                                 </td>
-                                                <td className="text-center">
-                                                    <Button
-                                                        variant="outline-danger"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteGrade(g.id, g.name)}
-                                                        title={`Delete grade ${g.name}`}
-                                                    >
-                                                        🗑️
-                                                    </Button>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <button className="ad-danger-btn ad-btn-sm" onClick={() => handleDeleteGrade(g.id, g.name)}>🗑️</button>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
-                            </Card.Body>
-                        </Card>
-                    </Tab>
-                </Tabs>
-            </Container>
+                                </table>
+                            ) : (
+                                <div className="ad-empty">
+                                    <div className="ad-empty-icon">🏛️</div>
+                                    <p>No grades created yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
 
             {/* Bulk Student Upload Modal */}
-            <Modal show={showBulkStudentModal} onHide={() => setShowBulkStudentModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>📤 Bulk Upload Students (CSV)</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Alert variant="info">
-                        <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade,semester</code><br />
-                        Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
-                        All students get <strong>default password: portal@123</strong>
-                    </Alert>
+            {showBulkStudentModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowBulkStudentModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>📤 Bulk Upload Students (CSV)</span>
+                            <button className="ad-modal-close" onClick={() => setShowBulkStudentModal(false)}>✕</button>
+                        </div>
 
-                    <div className="d-flex align-items-center mb-3">
-                        <Button variant="outline-secondary" size="sm" onClick={downloadStudentTemplate}>
-                            ⬇️ Download Template
-                        </Button>
+                        <div className="ad-alert info">
+                            <span>
+                                <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade,semester</code><br />
+                                Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
+                                All students get <strong>default password: portal@123</strong>
+                            </span>
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
+                            <button className="ad-secondary-btn" onClick={downloadStudentTemplate}>⬇️ Download Template</button>
+                        </div>
+
+                        <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                            <label>Select CSV File</label>
+                            <input type="file" accept=".csv" className="ad-file-input" onChange={e => setBulkStudentFile(e.target.files[0])} />
+                        </div>
+
+                        <button
+                            className="ad-primary-btn"
+                            onClick={handleBulkStudentUpload}
+                            disabled={bulkStudentLoading || !bulkStudentFile}
+                            style={{ opacity: (bulkStudentLoading || !bulkStudentFile) ? 0.5 : 1 }}
+                        >
+                            {bulkStudentLoading ? 'Uploading...' : 'Upload & Create Students'}
+                        </button>
+
+                        {bulkStudentResult && bulkStudentResult.success && (
+                            <div className="ad-alert success" style={{ marginTop: 16 }}>✅ {bulkStudentResult.message}</div>
+                        )}
+
+                        {bulkStudentResult && !bulkStudentResult.success && (
+                            <div className="ad-alert danger" style={{ marginTop: 16, flexDirection: 'column' }}>
+                                <strong>❌ {bulkStudentResult.error}</strong>
+                                {bulkStudentResult.details && (
+                                    <>
+                                        <p style={{ margin: '8px 0 4px' }}>Errors in {bulkStudentResult.errorCount} of {bulkStudentResult.totalRows} rows:</p>
+                                        <div className="ad-error-list">
+                                            {bulkStudentResult.details.map((d, idx) => (
+                                                <div key={idx} className="ad-error-item">
+                                                    <strong>Row {d.row}:</strong> {d.errors.join('; ')}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
-
-                    <Form.Group className="mb-3">
-                        <Form.Label>Select CSV File</Form.Label>
-                        <Form.Control
-                            type="file"
-                            accept=".csv"
-                            onChange={e => setBulkStudentFile(e.target.files[0])}
-                        />
-                    </Form.Group>
-
-                    <Button
-                        variant="primary"
-                        onClick={handleBulkStudentUpload}
-                        disabled={bulkStudentLoading || !bulkStudentFile}
-                    >
-                        {bulkStudentLoading ? 'Uploading...' : 'Upload & Create Students'}
-                    </Button>
-
-                    {bulkStudentResult && bulkStudentResult.success && (
-                        <Alert variant="success" className="mt-3">
-                            ✅ {bulkStudentResult.message}
-                        </Alert>
-                    )}
-
-                    {bulkStudentResult && !bulkStudentResult.success && (
-                        <Alert variant="danger" className="mt-3">
-                            <strong>❌ {bulkStudentResult.error}</strong>
-                            {bulkStudentResult.details && (
-                                <>
-                                    <p className="mt-2 mb-1">Errors in {bulkStudentResult.errorCount} of {bulkStudentResult.totalRows} rows:</p>
-                                    <ListGroup variant="flush" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                        {bulkStudentResult.details.map((d, idx) => (
-                                            <ListGroup.Item key={idx} className="py-1 px-2" style={{ fontSize: '0.85em' }}>
-                                                <strong>Row {d.row}:</strong> {d.errors.join('; ')}
-                                            </ListGroup.Item>
-                                        ))}
-                                    </ListGroup>
-                                </>
-                            )}
-                        </Alert>
-                    )}
-                </Modal.Body>
-            </Modal>
-        </>
+                </div>
+            )}
+        </div>
     );
 };
 
