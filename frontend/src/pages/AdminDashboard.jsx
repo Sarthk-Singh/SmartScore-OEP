@@ -42,6 +42,12 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     const [bulkStudentLoading, setBulkStudentLoading] = useState(false);
     const [bulkStudentResult, setBulkStudentResult] = useState(null);
 
+    // Bulk Teacher Upload State
+    const [showBulkTeacherModal, setShowBulkTeacherModal] = useState(false);
+    const [bulkTeacherFile, setBulkTeacherFile] = useState(null);
+    const [bulkTeacherLoading, setBulkTeacherLoading] = useState(false);
+    const [bulkTeacherResult, setBulkTeacherResult] = useState(null);
+
     // Sidebar
     const [activeTab, setActiveTab] = useState('users');
 
@@ -210,6 +216,46 @@ const AdminDashboard = ({ isEmbedded = false }) => {
         }
     };
 
+    const openBulkTeacherUpload = () => {
+        setBulkTeacherFile(null);
+        setBulkTeacherResult(null);
+        setShowBulkTeacherModal(true);
+    };
+
+    const downloadTeacherTemplate = () => {
+        const template = 'name,email,grades\n"Jane Smith",jane@exam.com,BTech\n"Bob Teacher",bob@exam.com,BTech;BSc\n';
+        const blob = new Blob([template], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'teacher_template.csv'; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleBulkTeacherUpload = async () => {
+        if (!bulkTeacherFile) { toast.error('Please select a CSV file'); return; }
+        setBulkTeacherLoading(true);
+        setBulkTeacherResult(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', bulkTeacherFile);
+            const response = await api.post('/admin/bulk-upload-teachers', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setBulkTeacherResult({ success: true, message: response.data.message, count: response.data.count });
+            toast.success(response.data.message);
+            fetchTeachers();
+        } catch (err) {
+            const data = err.response?.data;
+            if (data?.details) {
+                setBulkTeacherResult({ success: false, error: data.error, details: data.details, totalRows: data.totalRows, errorCount: data.errorCount });
+            } else {
+                setBulkTeacherResult({ success: false, error: data?.error || 'Upload failed' });
+            }
+            toast.error(data?.error || 'Bulk upload failed');
+        } finally {
+            setBulkTeacherLoading(false);
+        }
+    };
+
     // Embedded content (used by AdminLayout)
     const content = (
         <>
@@ -236,7 +282,10 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                     <label>Password</label>
                                     <input className="ad-input" type="password" required value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} />
                                 </div>
-                                <button type="submit" className="ad-primary-btn">Create Teacher</button>
+                                <div className="ad-btn-row">
+                                    <button type="submit" className="ad-primary-btn">Create Teacher</button>
+                                    <button type="button" className="ad-secondary-btn" onClick={openBulkTeacherUpload}>📤 Bulk Upload Teachers</button>
+                                </div>
                             </form>
                         </div>
 
@@ -285,27 +334,6 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                 </form>
                             </div>
 
-                            <div className="ad-section">
-                                <div className="ad-section-header">
-                                    <div className="ad-section-title"><span className="icon">📋</span> Teacher Assignments</div>
-                                </div>
-                                {teachers.map(t => (
-                                    <div key={t.id} className="ad-assignment-item">
-                                        <span className="ad-assignment-name">{t.name}</span>
-                                        <div className="ad-assignment-badges">
-                                            {t.teachingGrades && t.teachingGrades.length > 0
-                                                ? t.teachingGrades.map(g => (
-                                                    <span key={g.id} className="ad-badge-pill">
-                                                        {g.name}
-                                                        <button className="ad-badge-remove" onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}>✕</button>
-                                                    </span>
-                                                ))
-                                                : <span className="ad-no-data">No grades assigned</span>
-                                            }
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </div>
 
@@ -489,6 +517,66 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                         <p style={{ margin: '8px 0 4px' }}>Errors in {bulkStudentResult.errorCount} of {bulkStudentResult.totalRows} rows:</p>
                                         <div className="ad-error-list">
                                             {bulkStudentResult.details.map((d, idx) => (
+                                                <div key={idx} className="ad-error-item">
+                                                    <strong>Row {d.row}:</strong> {d.errors.join('; ')}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+            {/* Bulk Teacher Upload Modal */}
+            {showBulkTeacherModal && (
+                <div className="ad-modal-overlay" onClick={() => setShowBulkTeacherModal(false)}>
+                    <div className="ad-modal lg" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>📤 Bulk Upload Teachers (CSV)</span>
+                            <button className="ad-modal-close" onClick={() => setShowBulkTeacherModal(false)}>✕</button>
+                        </div>
+
+                        <div className="ad-alert info">
+                            <span>
+                                <strong>CSV Format:</strong> <code>name,email,grades</code><br />
+                                Use <strong>semicolons</strong> to assign multiple grades: <code>BTech;BSc</code><br />
+                                The <strong>grades</strong> column is optional — leave blank to assign later.<br />
+                                All teachers get <strong>default password: portal@123</strong>
+                            </span>
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
+                            <button className="ad-secondary-btn" onClick={downloadTeacherTemplate}>⬇️ Download Template</button>
+                        </div>
+
+                        <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                            <label>Select CSV File</label>
+                            <input type="file" accept=".csv" className="ad-file-input" onChange={e => setBulkTeacherFile(e.target.files[0])} />
+                        </div>
+
+                        <button
+                            className="ad-primary-btn"
+                            onClick={handleBulkTeacherUpload}
+                            disabled={bulkTeacherLoading || !bulkTeacherFile}
+                            style={{ opacity: (bulkTeacherLoading || !bulkTeacherFile) ? 0.5 : 1 }}
+                        >
+                            {bulkTeacherLoading ? 'Uploading...' : 'Upload & Create Teachers'}
+                        </button>
+
+                        {bulkTeacherResult && bulkTeacherResult.success && (
+                            <div className="ad-alert success" style={{ marginTop: 16 }}>✅ {bulkTeacherResult.message}</div>
+                        )}
+
+                        {bulkTeacherResult && !bulkTeacherResult.success && (
+                            <div className="ad-alert danger" style={{ marginTop: 16, flexDirection: 'column' }}>
+                                <strong>❌ {bulkTeacherResult.error}</strong>
+                                {bulkTeacherResult.details && (
+                                    <>
+                                        <p style={{ margin: '8px 0 4px' }}>Errors in {bulkTeacherResult.errorCount} of {bulkTeacherResult.totalRows} rows:</p>
+                                        <div className="ad-error-list">
+                                            {bulkTeacherResult.details.map((d, idx) => (
                                                 <div key={idx} className="ad-error-item">
                                                     <strong>Row {d.row}:</strong> {d.errors.join('; ')}
                                                 </div>

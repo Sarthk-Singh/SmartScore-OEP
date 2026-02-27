@@ -49,6 +49,17 @@ const UserManagement = () => {
         }
     };
 
+    const handleRemoveGrade = async (teacherId, gradeId, teacherName, gradeName) => {
+        if (!window.confirm(`Remove "${gradeName}" from ${teacherName}?`)) return;
+        try {
+            await api.delete(`/admin/teacher/${teacherId}/grade/${gradeId}`);
+            toast.success(`Removed ${gradeName} from ${teacherName}`);
+            fetchUsers();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to remove grade');
+        }
+    };
+
     const filteredTeachers = useMemo(() => {
         if (!search.trim()) return teachers;
         const q = search.toLowerCase();
@@ -137,7 +148,10 @@ const UserManagement = () => {
                                         <td>
                                             {t.teachingGrades && t.teachingGrades.length > 0
                                                 ? t.teachingGrades.map(g => (
-                                                    <span key={g.id} className="ad-badge-pill" style={{ marginRight: 4 }}>{g.name}</span>
+                                                    <span key={g.id} className="ad-badge-pill" style={{ marginRight: 4 }}>
+                                                        {g.name}
+                                                        <button className="ad-badge-remove" onClick={() => handleRemoveGrade(t.id, g.id, t.name, g.name)}>✕</button>
+                                                    </span>
                                                 ))
                                                 : <span className="ad-no-data">None</span>
                                             }

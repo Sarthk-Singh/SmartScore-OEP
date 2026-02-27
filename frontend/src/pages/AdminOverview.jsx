@@ -111,10 +111,7 @@ const AdminOverview = ({ isVisible = true }) => {
 
     return (
         <div className="ao-container">
-            <div className="ao-page-header">
-                <h1>Admin Overview</h1>
-                <p>Quick snapshot of your institution</p>
-            </div>
+
 
             {/* Stat Cards */}
             <div className="ao-stats-row">

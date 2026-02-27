@@ -529,6 +529,139 @@ apiRouter.post("/admin/bulk-upload-students",
   }
 );
 
+// Admin bulk uploads teachers via CSV
+apiRouter.post("/admin/bulk-upload-teachers",
+  auth, requireRole("ADMIN"),
+  upload.single("file"),
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    try {
+      const rows = [];
+      const REQUIRED_HEADERS = ["name", "email"];
+
+      await new Promise((resolve, reject) => {
+        const stream = Readable.from(req.file.buffer.toString());
+        stream
+          .pipe(csvParser())
+          .on("headers", (headers) => {
+            const normalized = headers.map(h => h.trim());
+            const missing = REQUIRED_HEADERS.filter(r => !normalized.includes(r));
+            if (missing.length > 0) {
+              reject(new Error(`Missing required CSV headers: ${missing.join(", ")}`));
+            }
+          })
+          .on("data", (row) => rows.push(row))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      if (rows.length === 0) {
+        return res.status(400).json({ error: "CSV file is empty (no data rows)" });
+      }
+
+      // Fetch all grades for name→ID resolution
+      const allGrades = await prisma.grade.findMany();
+      const gradeMap = {};
+      for (const g of allGrades) {
+        gradeMap[g.name.toLowerCase()] = g.id;
+      }
+
+      // Check for existing emails
+      const allEmails = rows.map(r => r.email?.trim().toLowerCase()).filter(Boolean);
+      const existingUsers = await prisma.user.findMany({
+        where: { email: { in: allEmails } },
+        select: { email: true }
+      });
+      const existingEmailSet = new Set(existingUsers.map(u => u.email.toLowerCase()));
+
+      // Row-by-row validation
+      const errors = [];
+      const seenEmails = new Set();
+      const validRows = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const rowNum = i + 2;
+        const r = rows[i];
+        const rowErrors = [];
+
+        const name = r.name?.trim();
+        const email = r.email?.trim().toLowerCase();
+        const gradesRaw = r.grades?.trim() || "";
+
+        if (!name) rowErrors.push("name is empty");
+        if (!email) rowErrors.push("email is empty");
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) rowErrors.push("invalid email format");
+
+        // Parse grades (semicolon-separated, optional)
+        const gradeIds = [];
+        if (gradesRaw) {
+          const gradeNames = gradesRaw.split(";").map(g => g.trim()).filter(Boolean);
+          for (const gn of gradeNames) {
+            const gId = gradeMap[gn.toLowerCase()];
+            if (!gId) {
+              rowErrors.push(`grade "${gn}" not found (available: ${allGrades.map(g => g.name).join(", ")})`);
+            } else {
+              gradeIds.push(gId);
+            }
+          }
+        }
+
+        if (email && seenEmails.has(email)) {
+          rowErrors.push("duplicate email within file");
+        }
+        if (email && existingEmailSet.has(email)) {
+          rowErrors.push("email already exists in database");
+        }
+
+        if (rowErrors.length > 0) {
+          errors.push({ row: rowNum, errors: rowErrors });
+        } else {
+          seenEmails.add(email);
+          validRows.push({ name, email, gradeIds });
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          error: "Validation failed",
+          totalRows: rows.length,
+          errorCount: errors.length,
+          details: errors
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash("portal@123", 10);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const created = [];
+        for (const row of validRows) {
+          const teacher = await tx.user.create({
+            data: {
+              name: row.name,
+              email: row.email,
+              password: hashedPassword,
+              role: "TEACHER",
+              teachingGrades: row.gradeIds.length > 0
+                ? { connect: row.gradeIds.map(id => ({ id })) }
+                : undefined
+            }
+          });
+          created.push(teacher);
+        }
+        return created;
+      }, { maxWait: 10000, timeout: 30000 });
+
+      res.json({
+        message: `Successfully created ${result.length} teachers (default password: portal@123)`,
+        count: result.length
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // Admin lists all teachers
 apiRouter.get("/admin/teachers", auth, requireRole("ADMIN"), async (req, res) => {
   try {
