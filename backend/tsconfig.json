@@ -5,6 +5,14 @@
     "moduleResolution": "Node",
     "strict": false,
     "esModuleInterop": true,
-    "types": ["node"]
-  }
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*"
+  ]
 }

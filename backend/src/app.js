@@ -831,6 +831,121 @@ apiRouter.get("/teacher/exam/:examId/submissions", auth, requireRole("TEACHER"),
   }
 });
 
+// Student Dashboard - Aggregated analytics data
+apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, res) => {
+  try {
+    const student = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { grade: true }
+    });
+    if (!student) return res.status(404).json({ error: "Student not found" });
+
+    // Get all submissions for this student with exam/course details
+    const submissions = await prisma.submission.findMany({
+      where: { studentId: req.user.userId },
+      include: {
+        exam: {
+          include: {
+            course: true,
+            grade: true,
+            questions: { select: { marks: true } }
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    // Compute subject-wise analysis
+    const subjectMap = {};
+    let totalScoreSum = 0;
+    let totalMarksSum = 0;
+
+    for (const sub of submissions) {
+      const courseName = sub.exam.course?.name || 'Unknown';
+      const courseId = sub.exam.courseId;
+      const totalMarks = sub.exam.questions.reduce((sum, q) => sum + q.marks, 0);
+
+      if (!subjectMap[courseId]) {
+        subjectMap[courseId] = {
+          courseId,
+          courseName,
+          totalScore: 0,
+          totalMarks: 0,
+          examCount: 0
+        };
+      }
+      subjectMap[courseId].totalScore += sub.totalScore;
+      subjectMap[courseId].totalMarks += totalMarks;
+      subjectMap[courseId].examCount += 1;
+
+      totalScoreSum += sub.totalScore;
+      totalMarksSum += totalMarks;
+    }
+
+    const subjectAnalysis = Object.values(subjectMap).map(s => ({
+      ...s,
+      percentage: s.totalMarks > 0 ? Math.round((s.totalScore / s.totalMarks) * 100) : 0
+    }));
+
+    // Overall stats
+    const overallPercentage = totalMarksSum > 0 ? Math.round((totalScoreSum / totalMarksSum) * 100) : 0;
+    const totalExams = submissions.length;
+    const avgScore = totalExams > 0 ? Math.round(totalScoreSum / totalExams) : 0;
+    const bestSubject = subjectAnalysis.length > 0
+      ? subjectAnalysis.reduce((best, s) => s.percentage > best.percentage ? s : best)
+      : null;
+
+    // Upcoming exams (for student's grade, scheduled in the future)
+    const upcomingExams = student.gradeId ? await prisma.exam.findMany({
+      where: {
+        gradeId: student.gradeId,
+        scheduledDate: { gte: new Date() }
+      },
+      include: { course: true, grade: true },
+      orderBy: { scheduledDate: 'asc' },
+      take: 10
+    }) : [];
+
+    // Recent results (released exams with submissions)
+    const recentResults = submissions
+      .filter(s => s.exam.resultsReleased)
+      .slice(0, 5)
+      .map(s => ({
+        examId: s.examId,
+        examTitle: s.exam.title,
+        courseName: s.exam.course?.name || 'Unknown',
+        totalScore: s.totalScore,
+        totalMarks: s.exam.questions.reduce((sum, q) => sum + q.marks, 0),
+        percentage: (() => {
+          const tm = s.exam.questions.reduce((sum, q) => sum + q.marks, 0);
+          return tm > 0 ? Math.round((s.totalScore / tm) * 100) : 0;
+        })(),
+        submittedAt: s.submittedAt,
+        scheduledDate: s.exam.scheduledDate
+      }));
+
+    res.json({
+      student: {
+        name: student.name,
+        grade: student.grade?.name || 'N/A',
+        semester: student.semester,
+        rollNumber: student.rollNumber
+      },
+      stats: {
+        overallPercentage,
+        totalExams,
+        avgScore,
+        bestSubject: bestSubject ? bestSubject.courseName : 'N/A'
+      },
+      subjectAnalysis,
+      upcomingExams,
+      recentResults
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List all exams (Filtered by Grade for Students)
 apiRouter.get("/exams", auth, async (req, res) => {
   try {
