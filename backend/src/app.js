@@ -561,6 +561,75 @@ apiRouter.post("/admin/assign-teacher-grade", auth, requireRole("ADMIN"), async 
   }
 });
 
+// Admin lists all students
+apiRouter.get("/admin/students", auth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const students = await prisma.user.findMany({
+      where: { role: "STUDENT" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        studentId: true,
+        rollNumber: true,
+        universityRollNumber: true,
+        semester: true,
+        createdAt: true,
+        grade: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin deletes a user (teacher or student) with cascade
+apiRouter.delete("/admin/user/:id", auth, requireRole("ADMIN"), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role === "ADMIN") return res.status(403).json({ error: "Cannot delete admin users" });
+
+    // Delete answers for all submissions by this user
+    const submissions = await prisma.submission.findMany({
+      where: { studentId: id },
+      select: { id: true }
+    });
+    const submissionIds = submissions.map(s => s.id);
+
+    if (submissionIds.length > 0) {
+      await prisma.answer.deleteMany({ where: { submissionId: { in: submissionIds } } });
+      await prisma.submission.deleteMany({ where: { studentId: id } });
+    }
+
+    // Disconnect teacher from grades (many-to-many)
+    if (user.role === "TEACHER") {
+      const teacher = await prisma.user.findUnique({
+        where: { id },
+        include: { teachingGrades: true }
+      });
+      if (teacher.teachingGrades.length > 0) {
+        await prisma.user.update({
+          where: { id },
+          data: {
+            teachingGrades: {
+              disconnect: teacher.teachingGrades.map(g => ({ id: g.id }))
+            }
+          }
+        });
+      }
+    }
+
+    await prisma.user.delete({ where: { id } });
+    res.json({ message: `${user.role === "TEACHER" ? "Teacher" : "Student"} "${user.name}" deleted successfully` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Teacher views their assigned grades
 apiRouter.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, res) => {
   try {

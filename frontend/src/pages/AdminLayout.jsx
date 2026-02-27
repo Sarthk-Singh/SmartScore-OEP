@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AdminOverview from './AdminOverview';
 import AdminDashboard from './AdminDashboard';
+import UserManagement from './UserManagement';
 import './AdminDashboard.css'; // reuse sidebar/layout styles
 
 const AdminLayout = () => {
@@ -21,6 +22,10 @@ const AdminLayout = () => {
                     className={`ad-sidebar-item ${activeView === 'dashboard' ? 'active' : ''}`}
                     onClick={() => setActiveView('dashboard')}
                 ><span className="nav-icon">⚙️</span> Dashboard</div>
+                <div
+                    className={`ad-sidebar-item ${activeView === 'users' ? 'active' : ''}`}
+                    onClick={() => setActiveView('users')}
+                ><span className="nav-icon">👤</span> Users</div>
                 <div className="ad-sidebar-bottom">
                     <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
@@ -31,7 +36,11 @@ const AdminLayout = () => {
                 <div className="ad-header">
                     <div className="ad-header-left">
                         <h1>Admin Portal 🛡️</h1>
-                        <p>{activeView === 'overview' ? 'Institution overview at a glance' : 'Manage users, grades, and courses'}</p>
+                        <p>
+                            {activeView === 'overview' && 'Institution overview at a glance'}
+                            {activeView === 'dashboard' && 'Manage users, grades, and courses'}
+                            {activeView === 'users' && 'Search, view, and manage all users'}
+                        </p>
                     </div>
                     <div className="ad-header-right">
                         <span className="ad-badge">🔑 {user?.name}</span>
@@ -42,6 +51,7 @@ const AdminLayout = () => {
                 {/* View Content */}
                 {activeView === 'overview' && <AdminOverview isVisible={activeView === 'overview'} />}
                 {activeView === 'dashboard' && <AdminDashboard isEmbedded={true} />}
+                {activeView === 'users' && <UserManagement />}
             </div>
         </div>
     );
