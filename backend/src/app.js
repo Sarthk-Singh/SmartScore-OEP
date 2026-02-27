@@ -124,6 +124,44 @@ apiRouter.get("/admin-only", auth, requireRole("ADMIN"), (req, res) => {
   res.json({ message: "Admin access granted" });
 });
 
+// --- ADMIN OVERVIEW ---
+apiRouter.get("/admin/overview", auth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const [totalTeachers, totalStudents, grades] = await Promise.all([
+      prisma.user.count({ where: { role: "TEACHER" } }),
+      prisma.user.count({ where: { role: "STUDENT" } }),
+      prisma.grade.findMany({
+        include: {
+          courses: { select: { id: true, name: true } },
+          students: { select: { id: true } },
+          teachers: { select: { id: true, name: true, email: true } },
+          exams: { select: { id: true } }
+        }
+      })
+    ]);
+
+    const gradeDetails = grades.map(g => ({
+      id: g.id,
+      name: g.name,
+      studentCount: g.students.length,
+      teacherCount: g.teachers.length,
+      courseCount: g.courses.length,
+      examCount: g.exams.length,
+      courses: g.courses,
+      teachers: g.teachers
+    }));
+
+    res.json({
+      totalTeachers,
+      totalStudents,
+      totalGrades: grades.length,
+      grades: gradeDetails
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- GRADE & COURSE MANAGEMENT ---
 
 // Admin creates a grade

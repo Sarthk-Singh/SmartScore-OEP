@@ -1,0 +1,579 @@
+/* ============================================================
+   SmartScore Admin Overview — Premium Dark Theme
+   Reuses CSS variables from AdminDashboard.css
+   ============================================================ */
+
+/* ---------- Container ---------- */
+.ao-container {
+    animation: ao-fade-in 0.35s ease;
+}
+
+@keyframes ao-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ---------- Page Header ---------- */
+.ao-page-header {
+    margin-bottom: 32px;
+}
+
+.ao-page-header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 4px 0;
+}
+
+.ao-page-header p {
+    margin: 0;
+    color: var(--ad-text-muted);
+    font-size: 14px;
+}
+
+/* ---------- Stat Cards Row ---------- */
+.ao-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 36px;
+}
+
+.ao-stat-card {
+    background: var(--ad-card);
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-radius);
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.ao-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: var(--ad-radius) var(--ad-radius) 0 0;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.ao-stat-card:hover {
+    border-color: rgba(99, 102, 241, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.ao-stat-card:hover::before {
+    opacity: 1;
+}
+
+.ao-stat-card:nth-child(1)::before {
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+}
+
+.ao-stat-card:nth-child(2)::before {
+    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+}
+
+.ao-stat-card:nth-child(3)::before {
+    background: linear-gradient(90deg, #22c55e, #10b981);
+}
+
+.ao-stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.ao-stat-icon.teachers {
+    background: rgba(99, 102, 241, 0.12);
+}
+
+.ao-stat-icon.students {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.ao-stat-icon.grades {
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.ao-stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ao-stat-count {
+    font-size: 32px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+
+.ao-stat-label {
+    font-size: 13px;
+    color: var(--ad-text-muted);
+    font-weight: 500;
+}
+
+/* ---------- Grades Section ---------- */
+.ao-grades-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.ao-grades-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+}
+
+.ao-grades-count {
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ad-text-muted);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+/* ---------- Grade Cards Grid ---------- */
+.ao-grades-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+.ao-grade-card {
+    background: var(--ad-card);
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-radius);
+    transition: all 0.25s ease;
+}
+
+.ao-grade-card:hover {
+    border-color: rgba(99, 102, 241, 0.15);
+}
+
+.ao-grade-card.expanded {
+    border-color: rgba(99, 102, 241, 0.25);
+    grid-column: 1 / -1;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.ao-grade-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ao-grade-card-header:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.ao-grade-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.ao-grade-icon {
+    font-size: 20px;
+}
+
+.ao-expand-arrow {
+    color: var(--ad-text-muted);
+    font-size: 16px;
+    transition: transform 0.3s ease;
+}
+
+.ao-expand-arrow.open {
+    transform: rotate(180deg);
+}
+
+/* ---------- Grade Details (Expanded) ---------- */
+.ao-grade-details {
+    padding: 0 24px 24px;
+    animation: ao-expand 0.3s ease;
+}
+
+@keyframes ao-expand {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
+
+/* Stat Chips */
+.ao-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.ao-chip {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ao-chip.blue {
+    background: rgba(59, 130, 246, 0.12);
+    color: #93c5fd;
+}
+
+.ao-chip.purple {
+    background: rgba(139, 92, 246, 0.12);
+    color: #c4b5fd;
+}
+
+.ao-chip.green {
+    background: rgba(34, 197, 94, 0.12);
+    color: #86efac;
+}
+
+.ao-chip.amber {
+    background: rgba(234, 179, 8, 0.12);
+    color: #fde68a;
+}
+
+/* Detail Sections */
+.ao-detail-section {
+    margin-bottom: 18px;
+}
+
+.ao-detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.ao-detail-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ad-text-muted);
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.ao-course-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ao-course-pill {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ad-text);
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Teacher List */
+.ao-teacher-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ao-teacher-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-radius-sm);
+    transition: all 0.2s;
+}
+
+.ao-teacher-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.ao-teacher-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--ad-gradient);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ao-teacher-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ao-teacher-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.ao-teacher-email {
+    font-size: 12px;
+    color: var(--ad-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ao-remove-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.ao-remove-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.ao-no-data {
+    color: var(--ad-text-muted);
+    font-size: 13px;
+    font-style: italic;
+    margin: 0;
+}
+
+/* ---------- Add Teacher Row ---------- */
+.ao-add-teacher-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.ao-search-select {
+    flex: 1;
+    position: relative;
+}
+
+.ao-search-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--ad-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--ad-text);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.ao-search-input:focus {
+    outline: none;
+    border-color: var(--ad-accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.ao-search-input::placeholder {
+    color: var(--ad-text-muted);
+}
+
+.ao-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #1e2133;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+    margin-top: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 9999;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ao-search-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ad-text);
+    transition: background 0.15s;
+}
+
+.ao-search-option:hover {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.ao-search-option:first-child {
+    border-radius: 10px 10px 0 0;
+}
+
+.ao-search-option:last-child {
+    border-radius: 0 0 10px 10px;
+}
+
+.ao-search-email {
+    font-size: 11px;
+    color: var(--ad-text-muted);
+}
+
+.ao-search-empty {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--ad-text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
+.ao-add-btn {
+    background: var(--ad-gradient);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+}
+
+.ao-add-btn:hover:not(:disabled) {
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
+}
+
+.ao-add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ---------- Loading ---------- */
+.ao-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 0;
+    color: var(--ad-text-muted);
+    gap: 16px;
+}
+
+.ao-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--ad-border);
+    border-top: 3px solid var(--ad-accent);
+    border-radius: 50%;
+    animation: ao-spin 0.8s linear infinite;
+}
+
+@keyframes ao-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ---------- Empty ---------- */
+.ao-empty {
+    text-align: center;
+    padding: 48px 16px;
+    color: var(--ad-text-muted);
+    font-size: 14px;
+}
+
+.ao-empty-icon {
+    font-size: 42px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+    .ao-stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .ao-grades-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ao-grade-card.expanded {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .ao-page-header h1 {
+        font-size: 22px;
+    }
+
+    .ao-stat-count {
+        font-size: 26px;
+    }
+
+    .ao-add-teacher-row {
+        flex-direction: column;
+    }
+
+    .ao-add-btn {
+        width: 100%;
+    }
+}

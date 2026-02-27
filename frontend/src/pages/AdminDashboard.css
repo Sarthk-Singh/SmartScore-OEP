@@ -490,6 +490,58 @@
     font-style: italic;
 }
 
+/* ---------- Searchable Dropdown ---------- */
+.ad-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #1e2133;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+    margin-top: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 9999;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ad-search-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ad-text);
+    transition: background 0.15s;
+}
+
+.ad-search-option:hover {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.ad-search-option:first-child {
+    border-radius: 10px 10px 0 0;
+}
+
+.ad-search-option:last-child {
+    border-radius: 0 0 10px 10px;
+}
+
+.ad-search-email {
+    font-size: 11px;
+    color: var(--ad-text-muted);
+}
+
+.ad-search-empty {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--ad-text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
 /* ---------- Exam Cards Grid ---------- */
 .ad-cards-grid {
     display: grid;

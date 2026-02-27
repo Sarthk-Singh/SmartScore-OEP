@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminLayout from './pages/AdminLayout';
 import TeacherDashboard from './pages/TeacherDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import { useAuth } from './context/AuthContext';
@@ -38,7 +38,7 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
-                <AdminDashboard />
+                <AdminLayout />
               </ProtectedRoute>
             }
           />

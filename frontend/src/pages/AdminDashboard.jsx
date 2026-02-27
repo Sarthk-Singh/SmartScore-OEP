@@ -4,7 +4,7 @@ import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './AdminDashboard.css';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ isEmbedded = false }) => {
     const { user, logout } = useAuth();
 
     // Teacher State
@@ -30,6 +30,8 @@ const AdminDashboard = () => {
     const [teachers, setTeachers] = useState([]);
     const [assignTeacherId, setAssignTeacherId] = useState('');
     const [assignGradeId, setAssignGradeId] = useState('');
+    const [assignTeacherSearch, setAssignTeacherSearch] = useState('');
+    const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
 
     // Data Lists
     const [grades, setGrades] = useState([]);
@@ -119,15 +121,22 @@ const AdminDashboard = () => {
 
     const handleAssignTeacher = async (e) => {
         e.preventDefault();
+        if (!assignTeacherId) { toast.error('Please select a teacher'); return; }
         try {
             await api.post('/admin/assign-teacher-grade', { teacherId: assignTeacherId, gradeId: assignGradeId });
             toast.success('Teacher assigned to grade!');
-            setAssignTeacherId(''); setAssignGradeId('');
+            setAssignTeacherId(''); setAssignGradeId(''); setAssignTeacherSearch('');
             fetchTeachers();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to assign teacher');
         }
     };
+
+    const filteredAssignTeachers = teachers.filter(t => {
+        if (!assignTeacherSearch.trim()) return true;
+        const q = assignTeacherSearch.toLowerCase();
+        return t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q);
+    });
 
     const handleDeleteGrade = async (gradeId, name) => {
         if (!window.confirm(`Delete grade "${name}"? This deletes all courses and exams (if no submissions).`)) return;
@@ -201,243 +210,238 @@ const AdminDashboard = () => {
         }
     };
 
-    return (
-        <div className="ad-wrapper">
-            {/* Sidebar */}
-            <div className="ad-sidebar">
-                <div className="ad-sidebar-logo">SS</div>
-                <div className={`ad-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('users')} title="Manage Users">👥</div>
-                <div className={`ad-sidebar-item ${activeTab === 'structure' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('structure')} title="Manage Structure">🏗️</div>
-                <div className="ad-sidebar-bottom">
-                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
-                </div>
-            </div>
+    // Embedded content (used by AdminLayout)
+    const content = (
+        <>
 
-            <div className="ad-main">
-                {/* Header */}
-                <div className="ad-header">
-                    <div className="ad-header-left">
-                        <h1>Admin Portal 🛡️</h1>
-                        <p>Manage users, grades, and courses</p>
-                    </div>
-                    <div className="ad-header-right">
-                        <span className="ad-badge">🔑 {user?.name}</span>
-                        <button className="ad-logout-btn" onClick={logout}>Logout</button>
-                    </div>
-                </div>
-
-                {/* ========== USERS TAB ========== */}
-                {activeTab === 'users' && (
-                    <>
-                        <div className="ad-content-grid">
-                            {/* Create Teacher */}
-                            <div className="ad-section">
-                                <div className="ad-section-header">
-                                    <div className="ad-section-title"><span className="icon">👨‍🏫</span> Create Teacher</div>
-                                </div>
-                                <form onSubmit={handleCreateTeacher}>
-                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
-                                        <label>Name</label>
-                                        <input className="ad-input" required value={teacherName} onChange={e => setTeacherName(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
-                                        <label>Email</label>
-                                        <input className="ad-input" type="email" required value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group" style={{ marginBottom: 16 }}>
-                                        <label>Password</label>
-                                        <input className="ad-input" type="password" required value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} />
-                                    </div>
-                                    <button type="submit" className="ad-primary-btn">Create Teacher</button>
-                                </form>
-                            </div>
-
-                            {/* Assign Teacher + Assignments */}
-                            <div>
-                                <div className="ad-section">
-                                    <div className="ad-section-header">
-                                        <div className="ad-section-title"><span className="icon">🔗</span> Assign Teacher to Grade</div>
-                                    </div>
-                                    <form onSubmit={handleAssignTeacher}>
-                                        <div className="ad-input-group" style={{ marginBottom: 12 }}>
-                                            <label>Teacher</label>
-                                            <select className="ad-select" required value={assignTeacherId} onChange={e => setAssignTeacherId(e.target.value)}>
-                                                <option value="">Select Teacher</option>
-                                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="ad-input-group" style={{ marginBottom: 16 }}>
-                                            <label>Grade</label>
-                                            <select className="ad-select" required value={assignGradeId} onChange={e => setAssignGradeId(e.target.value)}>
-                                                <option value="">Select Grade</option>
-                                                {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <button type="submit" className="ad-info-btn">Assign Grade</button>
-                                    </form>
-                                </div>
-
-                                <div className="ad-section">
-                                    <div className="ad-section-header">
-                                        <div className="ad-section-title"><span className="icon">📋</span> Teacher Assignments</div>
-                                    </div>
-                                    {teachers.map(t => (
-                                        <div key={t.id} className="ad-assignment-item">
-                                            <span className="ad-assignment-name">{t.name}</span>
-                                            <div className="ad-assignment-badges">
-                                                {t.teachingGrades && t.teachingGrades.length > 0
-                                                    ? t.teachingGrades.map(g => (
-                                                        <span key={g.id} className="ad-badge-pill">
-                                                            {g.name}
-                                                            <button className="ad-badge-remove" onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}>✕</button>
-                                                        </span>
-                                                    ))
-                                                    : <span className="ad-no-data">No grades assigned</span>
-                                                }
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Create Student */}
+            {/* ========== USERS TAB ========== */}
+            {activeTab === 'users' && (
+                <>
+                    <div className="ad-content-grid">
+                        {/* Create Teacher */}
                         <div className="ad-section">
                             <div className="ad-section-header">
-                                <div className="ad-section-title"><span className="icon">🎓</span> Create Student</div>
+                                <div className="ad-section-title"><span className="icon">👨‍🏫</span> Create Teacher</div>
                             </div>
-                            <form onSubmit={handleCreateStudent}>
-                                <div className="ad-form-grid">
-                                    <div className="ad-input-group">
-                                        <label>Name</label>
-                                        <input className="ad-input" required value={studentName} onChange={e => setStudentName(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group">
-                                        <label>Email</label>
-                                        <input className="ad-input" type="email" required value={studentEmail} onChange={e => setStudentEmail(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group">
-                                        <label>Student ID</label>
-                                        <input className="ad-input" required value={studentId} onChange={e => setStudentId(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group">
-                                        <label>Roll Number</label>
-                                        <input className="ad-input" required value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group full-width">
-                                        <label>University Roll Number</label>
-                                        <input className="ad-input" required value={uniRollNumber} onChange={e => setUniRollNumber(e.target.value)} />
-                                    </div>
-                                    <div className="ad-input-group">
-                                        <label>Grade</label>
-                                        <select className="ad-select" required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
-                                            <option value="">Select Grade</option>
-                                            {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="ad-input-group">
-                                        <label>Semester</label>
-                                        <input className="ad-input" type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
-                                    </div>
+                            <form onSubmit={handleCreateTeacher}>
+                                <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                    <label>Name</label>
+                                    <input className="ad-input" required value={teacherName} onChange={e => setTeacherName(e.target.value)} />
                                 </div>
-                                <div className="ad-btn-row">
-                                    <button type="submit" className="ad-success-btn">Create Student</button>
-                                    <button type="button" className="ad-secondary-btn" onClick={openBulkStudentUpload}>📤 Bulk Upload Students</button>
+                                <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                    <label>Email</label>
+                                    <input className="ad-input" type="email" required value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)} />
                                 </div>
+                                <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                    <label>Password</label>
+                                    <input className="ad-input" type="password" required value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} />
+                                </div>
+                                <button type="submit" className="ad-primary-btn">Create Teacher</button>
                             </form>
                         </div>
-                    </>
-                )}
 
-                {/* ========== STRUCTURE TAB ========== */}
-                {activeTab === 'structure' && (
-                    <>
-                        <div className="ad-content-grid">
-                            {/* Add Grade */}
+                        {/* Assign Teacher + Assignments */}
+                        <div>
                             <div className="ad-section">
                                 <div className="ad-section-header">
-                                    <div className="ad-section-title"><span className="icon">📚</span> Add Grade</div>
+                                    <div className="ad-section-title"><span className="icon">🔗</span> Assign Teacher to Grade</div>
                                 </div>
-                                <form onSubmit={handleCreateGrade}>
-                                    <div className="ad-input-group" style={{ marginBottom: 16 }}>
-                                        <label>Grade Name (e.g., BTech, BSc)</label>
-                                        <input className="ad-input" required value={gradeName} onChange={e => setGradeName(e.target.value)} />
+                                <form onSubmit={handleAssignTeacher}>
+                                    <div className="ad-input-group" style={{ marginBottom: 12, position: 'relative' }}>
+                                        <label>Teacher</label>
+                                        <input
+                                            className="ad-input"
+                                            type="text"
+                                            placeholder="Search teachers by name or email..."
+                                            value={assignTeacherSearch}
+                                            onChange={e => { setAssignTeacherSearch(e.target.value); setAssignTeacherId(''); setShowTeacherDropdown(true); }}
+                                            onFocus={() => setShowTeacherDropdown(true)}
+                                        />
+                                        {showTeacherDropdown && assignTeacherSearch.trim() && (
+                                            <div className="ad-search-dropdown">
+                                                {filteredAssignTeachers.length > 0 ? filteredAssignTeachers.map(t => (
+                                                    <div key={t.id} className="ad-search-option" onClick={() => {
+                                                        setAssignTeacherId(t.id);
+                                                        setAssignTeacherSearch(`${t.name} (${t.email})`);
+                                                        setShowTeacherDropdown(false);
+                                                    }}>
+                                                        <span>{t.name}</span>
+                                                        <span className="ad-search-email">{t.email}</span>
+                                                    </div>
+                                                )) : (
+                                                    <div className="ad-search-empty">No matching teachers</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                    <button type="submit" className="ad-primary-btn">Add Grade</button>
-                                </form>
-                            </div>
-
-                            {/* Add Course */}
-                            <div className="ad-section">
-                                <div className="ad-section-header">
-                                    <div className="ad-section-title"><span className="icon">📖</span> Add Course</div>
-                                </div>
-                                <form onSubmit={handleCreateCourse}>
-                                    <div className="ad-input-group" style={{ marginBottom: 12 }}>
-                                        <label>Course Name (e.g., Java, Python)</label>
-                                        <input className="ad-input" required value={courseName} onChange={e => setCourseName(e.target.value)} />
-                                    </div>
                                     <div className="ad-input-group" style={{ marginBottom: 16 }}>
-                                        <label>Assign to Grade</label>
-                                        <select className="ad-select" required value={courseGradeId} onChange={e => setCourseGradeId(e.target.value)}>
+                                        <label>Grade</label>
+                                        <select className="ad-select" required value={assignGradeId} onChange={e => setAssignGradeId(e.target.value)}>
                                             <option value="">Select Grade</option>
                                             {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                         </select>
                                     </div>
-                                    <button type="submit" className="ad-primary-btn">Add Course</button>
+                                    <button type="submit" className="ad-info-btn">Assign Grade</button>
                                 </form>
                             </div>
-                        </div>
 
-                        {/* Current Structure Table */}
+                            <div className="ad-section">
+                                <div className="ad-section-header">
+                                    <div className="ad-section-title"><span className="icon">📋</span> Teacher Assignments</div>
+                                </div>
+                                {teachers.map(t => (
+                                    <div key={t.id} className="ad-assignment-item">
+                                        <span className="ad-assignment-name">{t.name}</span>
+                                        <div className="ad-assignment-badges">
+                                            {t.teachingGrades && t.teachingGrades.length > 0
+                                                ? t.teachingGrades.map(g => (
+                                                    <span key={g.id} className="ad-badge-pill">
+                                                        {g.name}
+                                                        <button className="ad-badge-remove" onClick={() => handleRemoveTeacherGrade(t.id, g.id, t.name, g.name)}>✕</button>
+                                                    </span>
+                                                ))
+                                                : <span className="ad-no-data">No grades assigned</span>
+                                            }
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Create Student */}
+                    <div className="ad-section">
+                        <div className="ad-section-header">
+                            <div className="ad-section-title"><span className="icon">🎓</span> Create Student</div>
+                        </div>
+                        <form onSubmit={handleCreateStudent}>
+                            <div className="ad-form-grid">
+                                <div className="ad-input-group">
+                                    <label>Name</label>
+                                    <input className="ad-input" required value={studentName} onChange={e => setStudentName(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Email</label>
+                                    <input className="ad-input" type="email" required value={studentEmail} onChange={e => setStudentEmail(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Student ID</label>
+                                    <input className="ad-input" required value={studentId} onChange={e => setStudentId(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Roll Number</label>
+                                    <input className="ad-input" required value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group full-width">
+                                    <label>University Roll Number</label>
+                                    <input className="ad-input" required value={uniRollNumber} onChange={e => setUniRollNumber(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Grade</label>
+                                    <select className="ad-select" required value={selectedGradeId} onChange={e => setSelectedGradeId(e.target.value)}>
+                                        <option value="">Select Grade</option>
+                                        {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="ad-input-group">
+                                    <label>Semester</label>
+                                    <input className="ad-input" type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="ad-btn-row">
+                                <button type="submit" className="ad-success-btn">Create Student</button>
+                                <button type="button" className="ad-secondary-btn" onClick={openBulkStudentUpload}>📤 Bulk Upload Students</button>
+                            </div>
+                        </form>
+                    </div>
+                </>
+            )}
+
+            {/* ========== STRUCTURE TAB ========== */}
+            {activeTab === 'structure' && (
+                <>
+                    <div className="ad-content-grid">
+                        {/* Add Grade */}
                         <div className="ad-section">
                             <div className="ad-section-header">
-                                <div className="ad-section-title"><span className="icon">🏛️</span> Current Structure</div>
+                                <div className="ad-section-title"><span className="icon">📚</span> Add Grade</div>
                             </div>
-                            {grades.length > 0 ? (
-                                <table className="ad-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Grade</th>
-                                            <th>Courses</th>
-                                            <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {grades.map(g => (
-                                            <tr key={g.id}>
-                                                <td style={{ fontWeight: 500, color: '#fff' }}>{g.name}</td>
-                                                <td>
-                                                    {g.courses && g.courses.length > 0
-                                                        ? g.courses.map(c => (
-                                                            <span key={c.id} className="ad-badge-pill secondary">
-                                                                {c.name}
-                                                                <button className="ad-badge-remove" onClick={() => handleDeleteCourse(c.id, c.name)}>✕</button>
-                                                            </span>
-                                                        ))
-                                                        : <span className="ad-no-data">No courses</span>
-                                                    }
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <button className="ad-danger-btn ad-btn-sm" onClick={() => handleDeleteGrade(g.id, g.name)}>🗑️</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <div className="ad-empty">
-                                    <div className="ad-empty-icon">🏛️</div>
-                                    <p>No grades created yet.</p>
+                            <form onSubmit={handleCreateGrade}>
+                                <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                    <label>Grade Name (e.g., BTech, BSc)</label>
+                                    <input className="ad-input" required value={gradeName} onChange={e => setGradeName(e.target.value)} />
                                 </div>
-                            )}
+                                <button type="submit" className="ad-primary-btn">Add Grade</button>
+                            </form>
                         </div>
-                    </>
-                )}
-            </div>
 
+                        {/* Add Course */}
+                        <div className="ad-section">
+                            <div className="ad-section-header">
+                                <div className="ad-section-title"><span className="icon">📖</span> Add Course</div>
+                            </div>
+                            <form onSubmit={handleCreateCourse}>
+                                <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                    <label>Course Name (e.g., Java, Python)</label>
+                                    <input className="ad-input" required value={courseName} onChange={e => setCourseName(e.target.value)} />
+                                </div>
+                                <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                    <label>Assign to Grade</label>
+                                    <select className="ad-select" required value={courseGradeId} onChange={e => setCourseGradeId(e.target.value)}>
+                                        <option value="">Select Grade</option>
+                                        {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                    </select>
+                                </div>
+                                <button type="submit" className="ad-primary-btn">Add Course</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {/* Current Structure Table */}
+                    <div className="ad-section">
+                        <div className="ad-section-header">
+                            <div className="ad-section-title"><span className="icon">🏛️</span> Current Structure</div>
+                        </div>
+                        {grades.length > 0 ? (
+                            <table className="ad-table">
+                                <thead>
+                                    <tr>
+                                        <th>Grade</th>
+                                        <th>Courses</th>
+                                        <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {grades.map(g => (
+                                        <tr key={g.id}>
+                                            <td style={{ fontWeight: 500, color: '#fff' }}>{g.name}</td>
+                                            <td>
+                                                {g.courses && g.courses.length > 0
+                                                    ? g.courses.map(c => (
+                                                        <span key={c.id} className="ad-badge-pill secondary">
+                                                            {c.name}
+                                                            <button className="ad-badge-remove" onClick={() => handleDeleteCourse(c.id, c.name)}>✕</button>
+                                                        </span>
+                                                    ))
+                                                    : <span className="ad-no-data">No courses</span>
+                                                }
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button className="ad-danger-btn ad-btn-sm" onClick={() => handleDeleteGrade(g.id, g.name)}>🗑️</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div className="ad-empty">
+                                <div className="ad-empty-icon">🏛️</div>
+                                <p>No grades created yet.</p>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
             {/* Bulk Student Upload Modal */}
             {showBulkStudentModal && (
                 <div className="ad-modal-overlay" onClick={() => setShowBulkStudentModal(false)}>
@@ -497,6 +501,54 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             )}
+        </>
+    );
+
+    // If embedded in AdminLayout, return just the content with inline tab nav
+    if (isEmbedded) {
+        return (
+            <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                    <button
+                        className={activeTab === 'users' ? 'ad-primary-btn' : 'ad-secondary-btn'}
+                        onClick={() => setActiveTab('users')}
+                    >👥 Manage Users</button>
+                    <button
+                        className={activeTab === 'structure' ? 'ad-primary-btn' : 'ad-secondary-btn'}
+                        onClick={() => setActiveTab('structure')}
+                    >🏗️ Manage Structure</button>
+                </div>
+                {content}
+            </>
+        );
+    }
+
+    // Standalone mode (fallback)
+    return (
+        <div className="ad-wrapper">
+            <div className="ad-sidebar">
+                <div className="ad-sidebar-logo">SS</div>
+                <div className={`ad-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('users')} title="Manage Users">👥</div>
+                <div className={`ad-sidebar-item ${activeTab === 'structure' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('structure')} title="Manage Structure">🏗️</div>
+                <div className="ad-sidebar-bottom">
+                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                </div>
+            </div>
+            <div className="ad-main">
+                <div className="ad-header">
+                    <div className="ad-header-left">
+                        <h1>Admin Portal 🛡️</h1>
+                        <p>Manage users, grades, and courses</p>
+                    </div>
+                    <div className="ad-header-right">
+                        <span className="ad-badge">🔑 {user?.name}</span>
+                        <button className="ad-logout-btn" onClick={logout}>Logout</button>
+                    </div>
+                </div>
+                {content}
+            </div>
         </div>
     );
 };
