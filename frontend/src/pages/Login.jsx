@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Container, Card, Form, Button, Alert, Modal } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import { jwtDecode } from 'jwt-decode';
+import './Login.css';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -21,7 +21,7 @@ const Login = () => {
     const { login, user } = useAuth();
     const navigate = useNavigate();
 
-    // Redirect if already logged in and no password change pending
+    // Redirect if already logged in
     useEffect(() => {
         if (user && !showChangePassword) {
             if (user.role === 'ADMIN') navigate('/admin');
@@ -34,15 +34,12 @@ const Login = () => {
         e.preventDefault();
         setError('');
         setLoading(true);
-
         try {
             const data = await login(email, password);
-
             if (data.firstLogin) {
                 setTempToken(data.token);
                 setShowChangePassword(true);
             } else {
-                // Navigation handled by useEffect or here
                 if (data.role === 'ADMIN') navigate('/admin');
                 else if (data.role === 'TEACHER') navigate('/teacher');
                 else if (data.role === 'STUDENT') navigate('/student');
@@ -61,80 +58,151 @@ const Login = () => {
             return;
         }
         try {
-            // Use the temp token to authorize this request
             api.defaults.headers.common['Authorization'] = `Bearer ${tempToken}`;
             await api.post('/change-password', { newPassword });
-
             toast.success("Password changed successfully! You can now access your dashboard.");
-
-            // Decode token to know where to go
             const decoded = jwtDecode(tempToken);
             if (decoded.role === 'ADMIN') navigate('/admin');
             else if (decoded.role === 'TEACHER') navigate('/teacher');
             else if (decoded.role === 'STUDENT') navigate('/student');
             else navigate('/');
-
         } catch (err) {
             toast.error(err.response?.data?.error || "Failed to change password");
         }
     };
 
     return (
-        <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: "100vh" }}>
-            <div className="w-100" style={{ maxWidth: "400px" }}>
-                <Card>
-                    <Card.Body>
-                        <h2 className="text-center mb-4">Log In</h2>
-                        {error && <Alert variant="danger">{error}</Alert>}
-                        <Form onSubmit={handleSubmit}>
-                            <Form.Group id="email" className="mb-3">
-                                <Form.Label>Email</Form.Label>
-                                <Form.Control
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </Form.Group>
-                            <Form.Group id="password" className="mb-3">
-                                <Form.Label>Password</Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </Form.Group>
-                            <Button disabled={loading} className="w-100" type="submit">
-                                Log In
-                            </Button>
-                        </Form>
-                    </Card.Body>
-                </Card>
+        <div className="login-page">
+            {/* Left Branding Panel */}
+            <div className="login-brand-panel">
+                <div className="login-shape login-shape-1"></div>
+                <div className="login-shape login-shape-2"></div>
+                <div className="login-shape login-shape-3"></div>
+                <div className="login-shape login-shape-4"></div>
+
+                <div className="login-brand-content">
+                    <div className="login-logo">SS</div>
+                    <h1 className="login-brand-title">SmartScore</h1>
+                    <p className="login-brand-tagline">Smart Exam Management Portal</p>
+
+                    <div className="login-features">
+                        <div className="login-feature-pill">📝 Create Exams</div>
+                        <div className="login-feature-pill">📊 Track Performance</div>
+                        <div className="login-feature-pill">📅 Schedule Tests</div>
+                        <div className="login-feature-pill">🎓 Manage Students</div>
+                    </div>
+                </div>
             </div>
 
-            <Modal show={showChangePassword} backdrop="static" keyboard={false}>
-                <Modal.Header>
-                    <Modal.Title>Set New Password</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Alert variant="info">
-                        This is your first login. Please set a new secure password to continue.
-                    </Alert>
-                    <Form onSubmit={handleChangePassword}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>New Password</Form.Label>
-                            <Form.Control type="password" required value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Confirm Password</Form.Label>
-                            <Form.Control type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-                        </Form.Group>
-                        <Button type="submit" variant="primary" className="w-100">Set Password & Login</Button>
-                    </Form>
-                </Modal.Body>
-            </Modal>
-        </Container>
+            {/* Right Form Panel */}
+            <div className="login-form-panel">
+                <div className="login-form-card">
+                    <h2 className="login-form-title">Welcome Back</h2>
+                    <p className="login-form-subtitle">Sign in to your account</p>
+
+                    {error && (
+                        <div className="login-error">
+                            <span>⚠️</span> {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        <div className="login-input-group">
+                            <label>Email Address</label>
+                            <div className="login-input-wrapper">
+                                <span className="login-input-icon">📧</span>
+                                <input
+                                    className="login-input"
+                                    type="email"
+                                    required
+                                    placeholder="you@example.com"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+
+                        <div className="login-input-group">
+                            <label>Password</label>
+                            <div className="login-input-wrapper">
+                                <span className="login-input-icon">🔒</span>
+                                <input
+                                    className="login-input"
+                                    type="password"
+                                    required
+                                    placeholder="Enter your password"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" className="login-submit-btn" disabled={loading}>
+                            {loading ? 'Signing in...' : 'Log In'}
+                        </button>
+                    </form>
+
+                    <div className="login-footer">
+                        Powered by SmartScore
+                    </div>
+                </div>
+            </div>
+
+            {/* First Login - Change Password Modal */}
+            {showChangePassword && (
+                <div className="login-modal-overlay">
+                    <div className="login-modal">
+                        <h3 className="login-modal-title">🔐 Set New Password</h3>
+                        <p className="login-modal-subtitle">
+                            This is your first login. Please set a new secure password to continue.
+                        </p>
+
+                        <div className="login-modal-alert">
+                            ℹ️ Choose a strong password that you'll remember. You won't be asked to change it again.
+                        </div>
+
+                        <form onSubmit={handleChangePassword}>
+                            <div className="login-input-group">
+                                <label>New Password</label>
+                                <div className="login-input-wrapper">
+                                    <span className="login-input-icon">🔑</span>
+                                    <input
+                                        className="login-input"
+                                        type="password"
+                                        required
+                                        placeholder="Enter new password"
+                                        value={newPassword}
+                                        onChange={e => setNewPassword(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="login-input-group">
+                                <label>Confirm Password</label>
+                                <div className="login-input-wrapper">
+                                    <span className="login-input-icon">🔑</span>
+                                    <input
+                                        className="login-input"
+                                        type="password"
+                                        required
+                                        placeholder="Confirm new password"
+                                        value={confirmPassword}
+                                        onChange={e => setConfirmPassword(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" className="login-submit-btn">
+                                Set Password & Login
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
+
 export default Login;

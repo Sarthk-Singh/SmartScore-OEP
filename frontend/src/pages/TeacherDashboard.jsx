@@ -173,11 +173,11 @@ const TeacherDashboard = () => {
         <div className="ad-wrapper">
             {/* Sidebar */}
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo">SS</div>
+                <div className="ad-sidebar-logo"><span>SS</span> SmartScore</div>
                 <div className={`ad-sidebar-item ${activeTab === 'exams' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('exams')} title="Exams">📝</div>
+                    onClick={() => setActiveTab('exams')}><span className="nav-icon">📝</span> Exams</div>
                 <div className="ad-sidebar-bottom">
-                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                    <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
             </div>
 

@@ -12,19 +12,17 @@ const AdminLayout = () => {
         <div className="ad-wrapper">
             {/* Sidebar */}
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo">SS</div>
+                <div className="ad-sidebar-logo"><span>SS</span> SmartScore</div>
                 <div
                     className={`ad-sidebar-item ${activeView === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveView('overview')}
-                    title="Overview"
-                >📊</div>
+                ><span className="nav-icon">📊</span> Overview</div>
                 <div
                     className={`ad-sidebar-item ${activeView === 'dashboard' ? 'active' : ''}`}
                     onClick={() => setActiveView('dashboard')}
-                    title="Dashboard"
-                >⚙️</div>
+                ><span className="nav-icon">⚙️</span> Dashboard</div>
                 <div className="ad-sidebar-bottom">
-                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                    <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
             </div>
 
@@ -32,7 +30,7 @@ const AdminLayout = () => {
                 {/* Shared Header */}
                 <div className="ad-header">
                     <div className="ad-header-left">
-                        <h1>{activeView === 'overview' ? 'Admin Portal 🛡️' : 'Admin Portal 🛡️'}</h1>
+                        <h1>Admin Portal 🛡️</h1>
                         <p>{activeView === 'overview' ? 'Institution overview at a glance' : 'Manage users, grades, and courses'}</p>
                     </div>
                     <div className="ad-header-right">

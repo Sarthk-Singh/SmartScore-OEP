@@ -34,14 +34,13 @@
 
 /* ---------- Sidebar ---------- */
 .sd-sidebar {
-  width: 72px;
+  width: 200px;
   background: var(--sd-sidebar);
   border-right: 1px solid var(--sd-border);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 24px 0;
-  gap: 8px;
+  padding: 24px 12px;
+  gap: 4px;
   position: fixed;
   top: 0;
   left: 0;
@@ -50,32 +49,43 @@
 }
 
 .sd-sidebar-logo {
-  width: 40px;
-  height: 40px;
+  width: 100%;
+  height: 44px;
   background: var(--sd-gradient);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   font-weight: 800;
-  font-size: 16px;
+  font-size: 14px;
   color: #fff;
-  margin-bottom: 28px;
-  letter-spacing: -1px;
+  margin-bottom: 24px;
+  letter-spacing: -0.5px;
 }
 
 .sd-sidebar-item {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  padding: 0 14px;
   color: var(--sd-text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 20px;
+  font-size: 14px;
+  font-weight: 500;
   position: relative;
+  box-sizing: border-box;
+}
+
+.sd-sidebar-item .nav-icon {
+  font-size: 18px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .sd-sidebar-item:hover,
@@ -87,7 +97,7 @@
 .sd-sidebar-item.active::before {
   content: '';
   position: absolute;
-  left: -14px;
+  left: -12px;
   width: 3px;
   height: 20px;
   background: var(--sd-gradient);
@@ -101,7 +111,7 @@
 /* ---------- Main Content ---------- */
 .sd-main {
   flex: 1;
-  margin-left: 72px;
+  margin-left: 200px;
   padding: 28px 32px;
   overflow-y: auto;
 }
@@ -199,10 +209,21 @@
   opacity: 1;
 }
 
-.sd-stat-card:nth-child(1)::before { background: var(--sd-gradient); }
-.sd-stat-card:nth-child(2)::before { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
-.sd-stat-card:nth-child(3)::before { background: linear-gradient(135deg, #22c55e, #10b981); }
-.sd-stat-card:nth-child(4)::before { background: linear-gradient(135deg, #f59e0b, #eab308); }
+.sd-stat-card:nth-child(1)::before {
+  background: var(--sd-gradient);
+}
+
+.sd-stat-card:nth-child(2)::before {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+}
+
+.sd-stat-card:nth-child(3)::before {
+  background: linear-gradient(135deg, #22c55e, #10b981);
+}
+
+.sd-stat-card:nth-child(4)::before {
+  background: linear-gradient(135deg, #f59e0b, #eab308);
+}
 
 .sd-stat-label {
   font-size: 12px;
@@ -243,10 +264,25 @@
   font-size: 20px;
 }
 
-.sd-stat-icon.purple { background: rgba(99, 102, 241, 0.15); color: var(--sd-accent-light); }
-.sd-stat-icon.blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.sd-stat-icon.green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.sd-stat-icon.yellow { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+.sd-stat-icon.purple {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--sd-accent-light);
+}
+
+.sd-stat-icon.blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.sd-stat-icon.green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.sd-stat-icon.yellow {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}
 
 /* ---------- Circular Progress ---------- */
 .sd-circular-progress {
@@ -364,18 +400,34 @@
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.sd-progress-fill.green { background: linear-gradient(90deg, #22c55e, #4ade80); }
-.sd-progress-fill.yellow { background: linear-gradient(90deg, #eab308, #facc15); }
-.sd-progress-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
+.sd-progress-fill.green {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+.sd-progress-fill.yellow {
+  background: linear-gradient(90deg, #eab308, #facc15);
+}
+
+.sd-progress-fill.red {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
 
 .sd-subject-percentage {
   font-size: 13px;
   font-weight: 600;
 }
 
-.sd-subject-percentage.green { color: #4ade80; }
-.sd-subject-percentage.yellow { color: #facc15; }
-.sd-subject-percentage.red { color: #f87171; }
+.sd-subject-percentage.green {
+  color: #4ade80;
+}
+
+.sd-subject-percentage.yellow {
+  color: #facc15;
+}
+
+.sd-subject-percentage.red {
+  color: #f87171;
+}
 
 /* ---------- Calendar ---------- */
 .sd-calendar-wrapper {
@@ -588,9 +640,20 @@
   border-radius: 8px;
 }
 
-.sd-result-percent.green { color: #4ade80; background: rgba(34, 197, 94, 0.1); }
-.sd-result-percent.yellow { color: #facc15; background: rgba(234, 179, 8, 0.1); }
-.sd-result-percent.red { color: #f87171; background: rgba(239, 68, 68, 0.1); }
+.sd-result-percent.green {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.sd-result-percent.yellow {
+  color: #facc15;
+  background: rgba(234, 179, 8, 0.1);
+}
+
+.sd-result-percent.red {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+}
 
 .sd-result-bottom {
   display: flex;
@@ -659,7 +722,9 @@
 }
 
 @keyframes sd-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---------- Exam Taking View ---------- */
@@ -811,8 +876,13 @@
 }
 
 @keyframes sd-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .sd-modal {
@@ -832,8 +902,15 @@
 }
 
 @keyframes sd-slide-up {
-  from { transform: translateY(16px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .sd-modal-title {
@@ -1049,6 +1126,7 @@
   .sd-content-grid {
     grid-template-columns: 1fr;
   }
+
   .sd-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1067,8 +1145,16 @@
     border-top: 1px solid var(--sd-border);
     z-index: 200;
   }
-  .sd-sidebar-logo { display: none; }
-  .sd-sidebar-bottom { margin-top: 0; margin-left: auto; }
+
+  .sd-sidebar-logo {
+    display: none;
+  }
+
+  .sd-sidebar-bottom {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
   .sd-sidebar-item.active::before {
     left: 50%;
     top: -1px;
@@ -1077,13 +1163,16 @@
     height: 3px;
     border-radius: 0 0 3px 3px;
   }
+
   .sd-main {
     margin-left: 0;
     padding: 20px 16px 80px;
   }
+
   .sd-stats-grid {
     grid-template-columns: 1fr 1fr;
   }
+
   .sd-header {
     flex-direction: column;
     align-items: flex-start;

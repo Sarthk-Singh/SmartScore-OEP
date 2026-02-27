@@ -512,19 +512,17 @@ const StudentDashboard = () => {
 // Sidebar Component
 const Sidebar = ({ activeTab, setActiveTab, logout }) => (
     <div className="sd-sidebar">
-        <div className="sd-sidebar-logo">SS</div>
+        <div className="sd-sidebar-logo"><span>SS</span> SmartScore</div>
         <div
             className={`sd-sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
-            title="Dashboard"
-        >📊</div>
+        ><span className="nav-icon">📊</span> Dashboard</div>
         <div
             className={`sd-sidebar-item ${activeTab === 'exams' ? 'active' : ''}`}
             onClick={() => setActiveTab('exams')}
-            title="Exams"
-        >📝</div>
+        ><span className="nav-icon">📝</span> Exams</div>
         <div className="sd-sidebar-bottom">
-            <div className="sd-sidebar-item" onClick={logout} title="Logout">🚪</div>
+            <div className="sd-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
         </div>
     </div>
 );

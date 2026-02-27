@@ -527,13 +527,13 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     return (
         <div className="ad-wrapper">
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo">SS</div>
+                <div className="ad-sidebar-logo"><span>SS</span> SmartScore</div>
                 <div className={`ad-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('users')} title="Manage Users">👥</div>
+                    onClick={() => setActiveTab('users')}><span className="nav-icon">👥</span> Users</div>
                 <div className={`ad-sidebar-item ${activeTab === 'structure' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('structure')} title="Manage Structure">🏗️</div>
+                    onClick={() => setActiveTab('structure')}><span className="nav-icon">🏗️</span> Structure</div>
                 <div className="ad-sidebar-bottom">
-                    <div className="ad-sidebar-item" onClick={logout} title="Logout">🚪</div>
+                    <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
             </div>
             <div className="ad-main">
@@ -554,3 +554,4 @@ const AdminDashboard = ({ isEmbedded = false }) => {
 };
 
 export default AdminDashboard;
+
