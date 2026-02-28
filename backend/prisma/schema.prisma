@@ -50,9 +50,9 @@ model User {
   createdAt  DateTime @default(now())
 
   // Student specific fields
-  studentId            String? // Custom ID or Roll No if needed
+  studentId            String? @unique
   rollNumber           String?
-  universityRollNumber String?
+  universityRollNumber String? @unique
   semester             Int?
 
   gradeId String?

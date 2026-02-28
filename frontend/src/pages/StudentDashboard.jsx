@@ -232,7 +232,7 @@ const StudentDashboard = () => {
                         <div className="sd-header">
                             <div className="sd-header-left">
                                 <h1>Welcome back, {studentInfo.name || user?.name}! 👋</h1>
-                                <p>{studentInfo.grade} • Semester {studentInfo.semester || '—'} {studentInfo.rollNumber ? `• Roll No: ${studentInfo.rollNumber}` : ''}</p>
+                                <p>{studentInfo.grade} • Semester {studentInfo.semester || '—'} {studentInfo.universityRollNumber ? `• Uni Roll: ${studentInfo.universityRollNumber}` : ''}</p>
                             </div>
                             <div className="sd-header-right">
                                 <span className="sd-badge">📚 Student</span>

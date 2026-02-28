@@ -364,6 +364,27 @@ apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Check for existing studentId or universityRollNumber
+    if (studentId || universityRollNumber) {
+      const existing = await prisma.user.findFirst({
+        where: {
+          OR: [
+            studentId ? { studentId } : null,
+            universityRollNumber ? { universityRollNumber } : null
+          ].filter(Boolean)
+        }
+      });
+
+      if (existing) {
+        if (studentId && existing.studentId === studentId) {
+          return res.status(400).json({ error: `Student ID "${studentId}" already exists` });
+        }
+        if (universityRollNumber && existing.universityRollNumber === universityRollNumber) {
+          return res.status(400).json({ error: `University Roll Number "${universityRollNumber}" already exists` });
+        }
+      }
+    }
+
     const student = await prisma.user.create({
       data: {
         name,
@@ -371,8 +392,7 @@ apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, 
         password: hashedPassword,
         role: "STUDENT",
         studentId,
-        rollNumber,
-        universityRollNumber,
+        universityRollNumber: universityRollNumber || rollNumber,
         gradeId,
         semester: semester ? parseInt(semester) : null
       },
@@ -395,7 +415,7 @@ apiRouter.post("/admin/bulk-upload-students",
       // Parse CSV
       const rows = [];
       const REQUIRED_HEADERS = [
-        "name", "email", "studentId", "rollNumber", "universityRollNumber", "grade", "semester"
+        "name", "email", "studentId", "universityRollNumber", "grade", "semester"
       ];
 
       await new Promise((resolve, reject) => {
@@ -425,17 +445,26 @@ apiRouter.post("/admin/bulk-upload-students",
         gradeMap[g.name.toLowerCase()] = g.id;
       }
 
-      // Check for existing emails in the database
-      const allEmails = rows.map(r => r.email?.trim().toLowerCase()).filter(Boolean);
-      const existingUsers = await prisma.user.findMany({
-        where: { email: { in: allEmails } },
-        select: { email: true }
-      });
-      const existingEmailSet = new Set(existingUsers.map(u => u.email.toLowerCase()));
+      // Check for existing emails, studentIds, and universityRollNumbers in the database
+      const emailsList = rows.map(r => r.email?.trim().toLowerCase()).filter(Boolean);
+      const studentIdsList = rows.map(r => r.studentId?.trim()).filter(Boolean);
+      const uniRollsList = rows.map(r => r.universityRollNumber?.trim()).filter(Boolean);
+
+      const [existingEmails, existingSids, existingUniRolls] = await Promise.all([
+        prisma.user.findMany({ where: { email: { in: emailsList } }, select: { email: true } }),
+        prisma.user.findMany({ where: { studentId: { in: studentIdsList } }, select: { studentId: true } }),
+        prisma.user.findMany({ where: { universityRollNumber: { in: uniRollsList } }, select: { universityRollNumber: true } })
+      ]);
+
+      const existingEmailSet = new Set(existingEmails.map(u => u.email.toLowerCase()));
+      const existingSidSet = new Set(existingSids.map(u => u.studentId));
+      const existingUniRollSet = new Set(existingUniRolls.map(u => u.universityRollNumber));
 
       // Row-by-row validation
       const errors = [];
       const seenEmails = new Set();
+      const seenSids = new Set();
+      const seenUniRolls = new Set();
       const validRows = [];
 
       for (let i = 0; i < rows.length; i++) {
@@ -446,7 +475,6 @@ apiRouter.post("/admin/bulk-upload-students",
         const name = r.name?.trim();
         const email = r.email?.trim().toLowerCase();
         const sid = r.studentId?.trim();
-        const roll = r.rollNumber?.trim();
         const uniRoll = r.universityRollNumber?.trim();
         const gradeName = r.grade?.trim();
         const semester = parseInt(r.semester?.trim(), 10);
@@ -455,7 +483,6 @@ apiRouter.post("/admin/bulk-upload-students",
         if (!email) rowErrors.push("email is empty");
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) rowErrors.push("invalid email format");
         if (!sid) rowErrors.push("studentId is empty");
-        if (!roll) rowErrors.push("rollNumber is empty");
         if (!uniRoll) rowErrors.push("universityRollNumber is empty");
         if (!gradeName) rowErrors.push("grade is empty");
         else if (!gradeMap[gradeName.toLowerCase()]) {
@@ -463,21 +490,24 @@ apiRouter.post("/admin/bulk-upload-students",
         }
         if (isNaN(semester) || semester < 1) rowErrors.push(`semester must be >= 1, got "${r.semester}"`);
 
-        // Duplicate email within file
-        if (email && seenEmails.has(email)) {
-          rowErrors.push("duplicate email within file");
-        }
-        // Duplicate email in database
-        if (email && existingEmailSet.has(email)) {
-          rowErrors.push("email already exists in database");
-        }
+        // Duplicate checks within file
+        if (email && seenEmails.has(email)) rowErrors.push("duplicate email within file");
+        if (sid && seenSids.has(sid)) rowErrors.push("duplicate studentId within file");
+        if (uniRoll && seenUniRolls.has(uniRoll)) rowErrors.push("duplicate universityRollNumber within file");
+
+        // Duplicate checks in database
+        if (email && existingEmailSet.has(email)) rowErrors.push("email already exists in database");
+        if (sid && existingSidSet.has(sid)) rowErrors.push("studentId already exists in database");
+        if (uniRoll && existingUniRollSet.has(uniRoll)) rowErrors.push("universityRollNumber already exists in database");
 
         if (rowErrors.length > 0) {
           errors.push({ row: rowNum, errors: rowErrors });
         } else {
-          seenEmails.add(email);
+          if (email) seenEmails.add(email);
+          if (sid) seenSids.add(sid);
+          if (uniRoll) seenUniRolls.add(uniRoll);
           validRows.push({
-            name, email, studentId: sid, rollNumber: roll,
+            name, email, studentId: sid,
             universityRollNumber: uniRoll,
             gradeId: gradeMap[gradeName.toLowerCase()],
             semester
@@ -508,7 +538,6 @@ apiRouter.post("/admin/bulk-upload-students",
               password: hashedPassword,
               role: "STUDENT",
               studentId: row.studentId,
-              rollNumber: row.rollNumber,
               universityRollNumber: row.universityRollNumber,
               gradeId: row.gradeId,
               semester: row.semester
@@ -1169,7 +1198,7 @@ apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, re
         name: student.name,
         grade: student.grade?.name || 'N/A',
         semester: student.semester,
-        rollNumber: student.rollNumber
+        universityRollNumber: student.universityRollNumber
       },
       stats: {
         overallPercentage,

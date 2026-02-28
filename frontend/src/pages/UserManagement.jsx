@@ -76,7 +76,7 @@ const UserManagement = () => {
             s.name.toLowerCase().includes(q) ||
             s.email.toLowerCase().includes(q) ||
             (s.studentId && s.studentId.toLowerCase().includes(q)) ||
-            (s.rollNumber && s.rollNumber.toLowerCase().includes(q)) ||
+            (s.universityRollNumber && s.universityRollNumber.toLowerCase().includes(q)) ||
             (s.grade?.name && s.grade.name.toLowerCase().includes(q))
         );
     }, [students, search]);
@@ -192,7 +192,7 @@ const UserManagement = () => {
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Student ID</th>
-                                        <th>Roll No</th>
+                                        <th>Uni Roll No</th>
                                         <th>Grade</th>
                                         <th>Sem</th>
                                         <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
@@ -204,7 +204,7 @@ const UserManagement = () => {
                                             <td style={{ fontWeight: 500, color: '#fff' }}>{s.name}</td>
                                             <td>{s.email}</td>
                                             <td>{s.studentId || '—'}</td>
-                                            <td>{s.rollNumber || '—'}</td>
+                                            <td>{s.universityRollNumber || '—'}</td>
                                             <td>
                                                 {s.grade
                                                     ? <span className="ad-badge-pill">{s.grade.name}</span>

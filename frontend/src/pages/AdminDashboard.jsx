@@ -184,7 +184,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     };
 
     const downloadStudentTemplate = () => {
-        const template = 'name,email,studentId,rollNumber,universityRollNumber,grade,semester\n"John Doe",john@exam.com,STU001,101,UNI001,BTech,1\n';
+        const template = 'name,email,studentId,universityRollNumber,grade,semester\n"John Doe",john@exam.com,STU001,UNI001,BTech,1\n';
         const blob = new Blob([template], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'student_template.csv'; a.click();
@@ -357,7 +357,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                     <input className="ad-input" required value={studentId} onChange={e => setStudentId(e.target.value)} />
                                 </div>
                                 <div className="ad-input-group">
-                                    <label>Roll Number</label>
+                                    <label>University Roll No</label>
                                     <input className="ad-input" required value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
                                 </div>
                                 <div className="ad-input-group full-width">
@@ -481,7 +481,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
 
                         <div className="ad-alert info">
                             <span>
-                                <strong>CSV Format:</strong> <code>name,email,studentId,rollNumber,universityRollNumber,grade,semester</code><br />
+                                <strong>CSV Format:</strong> <code>name,email,studentId,universityRollNumber,grade,semester</code><br />
                                 Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
                                 All students get <strong>default password: portal@123</strong>
                             </span>
