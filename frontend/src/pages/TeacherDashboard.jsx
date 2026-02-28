@@ -166,6 +166,37 @@ const TeacherDashboard = () => {
         } catch { toast.error("Failed to toggle results"); }
     };
 
+    const handleEditScore = async (subId, currentScore) => {
+        const newScore = prompt(`Enter new score for this student (Current: ${currentScore}):`, currentScore);
+        if (newScore === null || newScore === "" || isNaN(newScore)) return;
+        try {
+            await api.patch(`/submissions/${subId}`, { totalScore: parseInt(newScore) });
+            toast.success("Score updated!");
+            // Refresh submissions
+            const r = await api.get(`/teacher/exam/${selectedExamId}/submissions`);
+            setExamSubmissions(r.data);
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Failed to update score");
+        }
+    };
+
+    const handleDeleteSubmission = async (subId, studentName, isReset = false) => {
+        const msg = isReset
+            ? `Reset record for ${studentName}? This will permanently delete their current submission and allow them to take the exam again.`
+            : `Delete submission record for ${studentName} permanently?`;
+
+        if (!window.confirm(msg)) return;
+        try {
+            await api.delete(`/submissions/${subId}`);
+            toast.success(isReset ? "Record reset successfully!" : "Submission deleted!");
+            // Refresh submissions
+            const r = await api.get(`/teacher/exam/${selectedExamId}/submissions`);
+            setExamSubmissions(r.data);
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Failed to delete submission");
+        }
+    };
+
     const optionSetters = [setOption1, setOption2, setOption3, setOption4];
     const optionValues = [option1, option2, option3, option4];
 
@@ -374,7 +405,7 @@ const TeacherDashboard = () => {
                         ) : (
                             <table className="ad-table">
                                 <thead>
-                                    <tr><th>Student</th><th>Email</th><th>Score</th><th>Submitted</th></tr>
+                                    <tr><th>Student</th><th>Email</th><th>Score</th><th>Submitted</th><th style={{ textAlign: 'center' }}>Actions</th></tr>
                                 </thead>
                                 <tbody>
                                     {examSubmissions.map(sub => (
@@ -383,6 +414,25 @@ const TeacherDashboard = () => {
                                             <td>{sub.student.email}</td>
                                             <td style={{ fontWeight: 600, color: '#818cf8' }}>{sub.totalScore}</td>
                                             <td>{new Date(sub.submittedAt).toLocaleString()}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                                    <button
+                                                        className="ad-info-btn ad-btn-sm"
+                                                        title="Edit Marks"
+                                                        onClick={() => handleEditScore(sub.id, sub.totalScore)}
+                                                    >✏️</button>
+                                                    <button
+                                                        className="ad-warning-btn ad-btn-sm"
+                                                        title="Reset (Allow Retake)"
+                                                        onClick={() => handleDeleteSubmission(sub.id, sub.student.name, true)}
+                                                    >🔄</button>
+                                                    <button
+                                                        className="ad-danger-btn ad-btn-sm"
+                                                        title="Delete Permanently"
+                                                        onClick={() => handleDeleteSubmission(sub.id, sub.student.name, false)}
+                                                    >🗑️</button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

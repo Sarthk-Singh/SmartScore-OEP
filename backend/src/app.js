@@ -1100,6 +1100,48 @@ apiRouter.get("/teacher/exam/:examId/submissions", auth, requireRole("TEACHER"),
   }
 });
 
+// Update submission score (Edit Marks)
+apiRouter.patch("/submissions/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  const { totalScore } = req.body;
+
+  if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const updated = await prisma.submission.update({
+      where: { id },
+      data: { totalScore: parseInt(totalScore, 10) }
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete submission (Delete/Reset)
+apiRouter.delete("/submissions/:id", auth, async (req, res) => {
+  const { id } = req.params;
+
+  if (req.user.role !== "ADMIN" && req.user.role !== "TEACHER") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const submissionId = id;
+    await prisma.$transaction(async (tx) => {
+      // Delete associated answers first
+      await tx.answer.deleteMany({ where: { submissionId } });
+      // Delete the submission
+      await tx.submission.delete({ where: { id: submissionId } });
+    });
+    res.json({ message: "Submission deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Student Dashboard - Aggregated analytics data
 apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, res) => {
   try {
