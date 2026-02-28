@@ -59,6 +59,7 @@ model User {
   grade   Grade?  @relation("StudentGrade", fields: [gradeId], references: [id])
 
   teachingGrades Grade[] @relation("TeacherGrades")
+  createdExams   Exam[]  @relation("ExamCreator")
 
   submissions Submission[]
 }
@@ -78,6 +79,9 @@ model Exam {
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id])
+
+  creatorId String?
+  creator   User?   @relation("ExamCreator", fields: [creatorId], references: [id])
 
   questions   Question[]
   submissions Submission[]

@@ -162,6 +162,51 @@ apiRouter.get("/admin/overview", auth, requireRole("ADMIN"), async (req, res) =>
   }
 });
 
+// Admin views all exams by grade
+apiRouter.get("/admin/grades-exams", auth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const grades = await prisma.grade.findMany({
+      include: {
+        exams: {
+          include: {
+            course: true,
+            creator: { select: { name: true } },
+            _count: { select: { questions: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+    res.json(grades);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin deletes an exam directly
+apiRouter.delete("/admin/exam/:id", auth, requireRole("ADMIN"), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const examId = id;
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all answers
+      await tx.answer.deleteMany({ where: { submission: { examId } } });
+      // 2. Delete all submissions
+      await tx.submission.deleteMany({ where: { examId } });
+      // 3. Delete all options
+      await tx.option.deleteMany({ where: { question: { examId } } });
+      // 4. Delete all questions
+      await tx.question.deleteMany({ where: { examId } });
+      // 5. Delete the exam
+      await tx.exam.delete({ where: { id: examId } });
+    });
+    res.json({ message: "Exam deleted successfully by Admin" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- GRADE & COURSE MANAGEMENT ---
 
 // Admin creates a grade
@@ -824,7 +869,8 @@ apiRouter.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req,
         courseId,
         scheduledDate: new Date(scheduledDate),
         durationMinutes,
-        password
+        password,
+        creatorId: req.user.userId
       },
     });
 

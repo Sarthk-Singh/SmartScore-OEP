@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import AdminOverview from './AdminOverview';
 import AdminDashboard from './AdminDashboard';
 import UserManagement from './UserManagement';
+import AdminExams from './AdminExams';
 import './AdminDashboard.css'; // reuse sidebar/layout styles
 
 const AdminLayout = () => {
@@ -26,6 +27,10 @@ const AdminLayout = () => {
                     className={`ad-sidebar-item ${activeView === 'users' ? 'active' : ''}`}
                     onClick={() => setActiveView('users')}
                 ><span className="nav-icon">👤</span> Users</div>
+                <div
+                    className={`ad-sidebar-item ${activeView === 'exams' ? 'active' : ''}`}
+                    onClick={() => setActiveView('exams')}
+                ><span className="nav-icon">📝</span> Exams</div>
                 <div className="ad-sidebar-bottom">
                     <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
@@ -40,6 +45,7 @@ const AdminLayout = () => {
                             {activeView === 'overview' && 'Institution overview at a glance'}
                             {activeView === 'dashboard' && 'Manage users, grades, and courses'}
                             {activeView === 'users' && 'Search, view, and manage all users'}
+                            {activeView === 'exams' && 'View and track all exams across grades'}
                         </p>
                     </div>
                     <div className="ad-header-right">
@@ -52,6 +58,7 @@ const AdminLayout = () => {
                 {activeView === 'overview' && <AdminOverview isVisible={activeView === 'overview'} />}
                 {activeView === 'dashboard' && <AdminDashboard isEmbedded={true} />}
                 {activeView === 'users' && <UserManagement />}
+                {activeView === 'exams' && <AdminExams isVisible={activeView === 'exams'} />}
             </div>
         </div>
     );
