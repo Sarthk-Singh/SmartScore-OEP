@@ -19,6 +19,9 @@ const StudentDashboard = () => {
     const [submissionResult, setSubmissionResult] = useState(null);
     const [viewingResult, setViewingResult] = useState(null);
 
+    // Exam Timer
+    const [timeLeft, setTimeLeft] = useState(null);
+
     // Password modal
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [selectedExamId, setSelectedExamId] = useState(null);
@@ -82,6 +85,9 @@ const StudentDashboard = () => {
             setAnswers({});
             setSubmissionResult(null);
             setShowPasswordModal(false);
+
+            // Initialize timer (durationMinutes * 60 seconds)
+            setTimeLeft(response.data.durationMinutes * 60);
         } catch (err) {
             toast.error(err.response?.data?.error || 'Verification failed');
         }
@@ -100,7 +106,7 @@ const StudentDashboard = () => {
         setAnswers(prev => ({ ...prev, [questionId]: optionId }));
     };
 
-    const handleSubmitExam = async () => {
+    const handleSubmitExam = async (isAutoSubmit = false) => {
         const formattedAnswers = Object.entries(answers).map(([questionId, selectedOptionId]) => ({
             questionId, selectedOptionId
         }));
@@ -110,12 +116,41 @@ const StudentDashboard = () => {
                 answers: formattedAnswers
             });
             setSubmissionResult(response.data);
-            toast.success('Exam submitted! Results will be available once released by the teacher.');
+            if (isAutoSubmit) {
+                toast.info("Time's up! Your exam has been submitted automatically.");
+            } else {
+                toast.success('Exam submitted! Results will be available once released by the teacher.');
+            }
             setActiveExam(null);
+            setTimeLeft(null); // Clear timer
             fetchDashboard(); // refresh analytics
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to submit exam');
         }
+    };
+
+    // Timer effect
+    useEffect(() => {
+        if (!activeExam || timeLeft === null) return;
+
+        if (timeLeft <= 0) {
+            handleSubmitExam(true);
+            return;
+        }
+
+        const timerId = setInterval(() => {
+            setTimeLeft(prev => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [activeExam, timeLeft]);
+
+    // Format mm:ss
+    const formatTime = (seconds) => {
+        if (seconds === null) return "00:00";
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
     };
 
     // Calendar helpers
@@ -175,8 +210,19 @@ const StudentDashboard = () => {
                 <Sidebar activeTab="exams" setActiveTab={setActiveTab} logout={logout} />
                 <div className="sd-main">
                     <div className="sd-exam-view">
-                        <div className="sd-exam-header">
+                        <div className="sd-exam-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2>{activeExam.title}</h2>
+                            <div className={`sd-timer ${timeLeft <= 60 ? 'danger' : ''}`} style={{
+                                background: timeLeft <= 60 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.2)',
+                                color: timeLeft <= 60 ? '#ef4444' : '#8b5cf6',
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                fontWeight: 'bold',
+                                fontSize: '1.2rem',
+                                border: `1px solid ${timeLeft <= 60 ? '#ef4444' : '#8b5cf6'}`
+                            }}>
+                                ⏱ {formatTime(timeLeft)}
+                            </div>
                         </div>
                         {activeExam.questions.map((q, idx) => (
                             <div key={q.id} className="sd-question-card">
@@ -198,7 +244,7 @@ const StudentDashboard = () => {
                                 </div>
                             </div>
                         ))}
-                        <button className="sd-submit-exam-btn" onClick={handleSubmitExam}>
+                        <button className="sd-submit-exam-btn" onClick={() => handleSubmitExam(false)}>
                             Submit Exam
                         </button>
                     </div>
@@ -353,7 +399,10 @@ const StudentDashboard = () => {
                                                             <div className="sd-upcoming-title">{ex.title}</div>
                                                             <div className="sd-upcoming-meta">{ex.course?.name} • {ex.grade?.name}</div>
                                                         </div>
-                                                        <div className="sd-upcoming-duration">{ex.durationMinutes} min</div>
+                                                        <div className="sd-upcoming-duration" style={{ textAlign: 'right', fontSize: '13px' }}>
+                                                            <div style={{ fontWeight: '500' }}>⏱ {ex.durationMinutes} min</div>
+                                                            <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>📋 {ex._count?.questions || 0} Qs</div>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -384,17 +433,31 @@ const StudentDashboard = () => {
                                                     <div className="sd-result-title">{r.examTitle}</div>
                                                     <div className="sd-result-course">{r.courseName}</div>
                                                 </div>
-                                                <div className={`sd-result-percent ${getColorClass(r.percentage)}`}>
-                                                    {r.percentage}%
-                                                </div>
+                                                {r.resultsReleased ? (
+                                                    <div className={`sd-result-percent ${getColorClass(r.percentage)}`}>
+                                                        {r.percentage}%
+                                                    </div>
+                                                ) : (
+                                                    <div className="sd-result-percent" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '4px 8px' }}>
+                                                        Pending
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="sd-result-bottom">
-                                                <span className="sd-result-score">
-                                                    Score: <strong>{r.totalScore}</strong> / {r.totalMarks}
-                                                </span>
-                                                <button className="sd-view-btn" onClick={() => handleViewResult(r.examId)}>
-                                                    View Details
-                                                </button>
+                                                {r.resultsReleased ? (
+                                                    <>
+                                                        <span className="sd-result-score">
+                                                            Score: <strong>{r.totalScore}</strong> / {r.totalMarks}
+                                                        </span>
+                                                        <button className="sd-view-btn" onClick={() => handleViewResult(r.examId)}>
+                                                            View Details
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span className="sd-result-score" style={{ color: 'var(--text-secondary)' }}>
+                                                        Result Pending
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -428,7 +491,7 @@ const StudentDashboard = () => {
                                         <div className="sd-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
                                         <div className="sd-exam-card-info">
                                             📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
-                                            ⏱ {exam.durationMinutes} minutes
+                                            ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
                                         </div>
                                         <div className="sd-exam-card-actions">
                                             <button className="sd-take-exam-btn" onClick={() => initiateExamStart(exam.id)}>

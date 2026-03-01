@@ -1120,23 +1120,19 @@ apiRouter.delete("/teacher/exam/:examId", auth, requireRole("TEACHER"), async (r
       return res.status(403).json({ error: "Incorrect password" });
     }
 
-    // Delete all questions and options for this exam
-    // 1. Find all questions
-    const questions = await prisma.question.findMany({ where: { examId }, select: { id: true } });
-    const questionIds = questions.map(q => q.id);
-
-    // 2. Delete all options for these questions
-    await prisma.option.deleteMany({
-      where: { questionId: { in: questionIds } }
+    // Delete all nested data inside a transaction to prevent orphan records or foreign key errors
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all answers
+      await tx.answer.deleteMany({ where: { submission: { examId } } });
+      // 2. Delete all submissions
+      await tx.submission.deleteMany({ where: { examId } });
+      // 3. Delete all options
+      await tx.option.deleteMany({ where: { question: { examId } } });
+      // 4. Delete all questions
+      await tx.question.deleteMany({ where: { examId } });
+      // 5. Delete the exam
+      await tx.exam.delete({ where: { id: examId } });
     });
-
-    // 3. Delete all questions
-    await prisma.question.deleteMany({
-      where: { examId }
-    });
-
-    // 4. Delete the exam
-    await prisma.exam.delete({ where: { id: examId } });
 
     res.json({ message: "Exam deleted successfully" });
   } catch (err) {
@@ -1243,12 +1239,15 @@ apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, re
       orderBy: { submittedAt: 'desc' }
     });
 
-    // Compute subject-wise analysis
+    // Separate released and pending submissions
+    const releasedSubmissions = submissions.filter(s => s.exam.resultsReleased);
+
+    // Compute subject-wise analysis (using ONLY released submissions)
     const subjectMap = {};
     let totalScoreSum = 0;
     let totalMarksSum = 0;
 
-    for (const sub of submissions) {
+    for (const sub of releasedSubmissions) {
       const courseName = sub.exam.course?.name || 'Unknown';
       const courseId = sub.exam.courseId;
       const totalMarks = sub.exam.questions.reduce((sum, q) => sum + q.marks, 0);
@@ -1275,9 +1274,9 @@ apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, re
       percentage: s.totalMarks > 0 ? Math.round((s.totalScore / s.totalMarks) * 100) : 0
     }));
 
-    // Overall stats
+    // Overall stats (using ONLY released submissions)
     const overallPercentage = totalMarksSum > 0 ? Math.round((totalScoreSum / totalMarksSum) * 100) : 0;
-    const totalExams = submissions.length;
+    const totalExams = releasedSubmissions.length;
     const avgScore = totalExams > 0 ? Math.round(totalScoreSum / totalExams) : 0;
     const bestSubject = subjectAnalysis.length > 0
       ? subjectAnalysis.reduce((best, s) => s.percentage > best.percentage ? s : best)
@@ -1289,28 +1288,32 @@ apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, re
         gradeId: student.gradeId,
         scheduledDate: { gte: new Date() }
       },
-      include: { course: true, grade: true },
+      include: {
+        course: true,
+        grade: true,
+        _count: { select: { questions: true } }
+      },
       orderBy: { scheduledDate: 'asc' },
       take: 10
     }) : [];
 
-    // Recent results (released exams with submissions)
+    // Recent results (show all recent submissions so frontend can display "Result Pending" badge for unreleased ones)
     const recentResults = submissions
-      .filter(s => s.exam.resultsReleased)
       .slice(0, 5)
-      .map(s => ({
-        examId: s.examId,
-        examTitle: s.exam.title,
-        courseName: s.exam.course?.name || 'Unknown',
-        totalScore: s.totalScore,
-        totalMarks: s.exam.questions.reduce((sum, q) => sum + q.marks, 0),
-        percentage: (() => {
-          const tm = s.exam.questions.reduce((sum, q) => sum + q.marks, 0);
-          return tm > 0 ? Math.round((s.totalScore / tm) * 100) : 0;
-        })(),
-        submittedAt: s.submittedAt,
-        scheduledDate: s.exam.scheduledDate
-      }));
+      .map(s => {
+        const totalMarks = s.exam.questions.reduce((sum, q) => sum + q.marks, 0);
+        return {
+          examId: s.examId,
+          examTitle: s.exam.title,
+          courseName: s.exam.course?.name || 'Unknown',
+          totalScore: s.totalScore,
+          totalMarks,
+          percentage: totalMarks > 0 ? Math.round((s.totalScore / totalMarks) * 100) : 0,
+          resultsReleased: s.exam.resultsReleased,
+          submittedAt: s.submittedAt,
+          scheduledDate: s.exam.scheduledDate
+        };
+      });
 
     res.json({
       student: {
