@@ -8,6 +8,7 @@ import { requireRole } from "./middleware/roles.js";
 import multer from "multer";
 import csvParser from "csv-parser";
 import { Readable } from "stream";
+import { aiModel } from "../utils/gemini.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -859,7 +860,7 @@ apiRouter.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, re
 
 // Teacher creates an exam
 apiRouter.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req, res) => {
-  const { title, gradeId, courseId, scheduledDate, durationMinutes, password } = req.body;
+  const { title, gradeId, courseId, scheduledDate, durationMinutes, password, topic } = req.body;
 
   try {
     const exam = await prisma.exam.create({
@@ -870,6 +871,7 @@ apiRouter.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req,
         scheduledDate: new Date(scheduledDate),
         durationMinutes,
         password,
+        topic,
         creatorId: req.user.userId
       },
     });
@@ -891,19 +893,48 @@ apiRouter.post("/teacher/add-question", auth, requireRole("TEACHER"), async (req
         type,
         questionText,
         marks,
-        options: {
-          create: options,
-
-        },
+        ...(type === "MCQ" && options && options.length > 0 && {
+          options: {
+            create: options,
+          }
+        }),
       },
       include: {
         options: true,
       },
     });
 
+    // 1. Immediately send the successful response back so the transaction finishes and UI unblocks
     res.json(question);
+
+    // 2. Fire-and-forget async background job for Gemini model answer generation
+    if (type === "SUBJECTIVE") {
+      (async () => {
+        try {
+          console.log(`[Background AI] Generating model answer for question: ${question.id}`);
+          const prompt = `You are an expert teacher. Please provide a clear, comprehensive, and accurate model answer for the following subjective question (worth ${marks} marks) to be used as a grading reference.
+Question: "${questionText}"
+Provide ONLY the text of the model answer. Do not include markdown or conversational text.`;
+
+          const result = await aiModel.generateContent(prompt);
+          const modelAnswer = result.response.text().trim();
+
+          await prisma.question.update({
+            where: { id: question.id },
+            data: { modelAnswer }
+          });
+          console.log(`[Background AI] Saved model answer for question: ${question.id}`);
+        } catch (bgErr) {
+          console.error(`[Background AI Error] Failed to generate model answer for question ${question.id}:`, bgErr.message);
+        }
+      })();
+    }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    } else {
+      console.error("Error outside of request cycle:", err);
+    }
   }
 });
 
@@ -1466,6 +1497,193 @@ apiRouter.get("/student/submission/:examId", auth, requireRole("STUDENT"), async
     if (!submission) return res.status(404).json({ error: "Submission not found" });
 
     res.json(submission);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- AI ENDPOINTS ---
+
+apiRouter.post("/ai/generate-questions", auth, requireRole("TEACHER"), async (req, res) => {
+  const { examId, numberOfQuestions, difficulty, questionType, prompt } = req.body;
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id: examId } });
+    if (!exam) return res.status(404).json({ error: "Exam not found" });
+
+    if (!prompt) return res.status(400).json({ error: "AI Generation requires a prompt." });
+
+    const aiPrompt = `You are an expert exam question generator. The user has requested questions based on the following instruction: "${prompt}".
+Generate ${numberOfQuestions} ${difficulty} level questions. The question type requested is: ${questionType} (which means MCQ, SUBJECTIVE, or a mix).
+Return EXACTLY a JSON array of objects. NO markdown formatting block like \`\`\`json, NO extra text. JUST a raw JSON array.
+Each object must have this structure:
+For MCQ:
+{
+  "questionText": "Question string",
+  "marks": integer,
+  "type": "MCQ",
+  "options": [
+    { "optionText": "Option A", "isCorrect": true },
+    { "optionText": "Option B", "isCorrect": false },
+    { "optionText": "Option C", "isCorrect": false },
+    { "optionText": "Option D", "isCorrect": false }
+  ]
+}
+For SUBJECTIVE:
+{
+  "questionText": "Question string",
+  "marks": integer,
+  "type": "SUBJECTIVE",
+  "modelAnswer": "A comprehensive correct answer to help with grading"
+}
+Make sure all MCQ questions have exactly 4 options with exactly 1 correct option.`;
+
+    const result = await aiModel.generateContent(aiPrompt);
+    let textResult = result.response.text();
+    textResult = textResult.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+    let generatedQuestions;
+    try {
+      generatedQuestions = JSON.parse(textResult);
+    } catch (parseErr) {
+      console.error("AI returned invalid JSON:", textResult);
+      return res.status(500).json({ error: "AI returned invalid format." });
+    }
+
+    const savedQuestions = [];
+    for (const q of generatedQuestions) {
+      if (q.type === "MCQ") {
+        savedQuestions.push(await prisma.question.create({
+          data: {
+            questionText: q.questionText,
+            marks: q.marks,
+            type: "MCQ",
+            examId,
+            modelAnswer: null,
+            options: {
+              create: q.options.map(o => ({
+                optionText: o.optionText,
+                isCorrect: o.isCorrect
+              }))
+            }
+          },
+          include: { options: true }
+        }));
+      } else {
+        savedQuestions.push(await prisma.question.create({
+          data: {
+            questionText: q.questionText,
+            marks: q.marks,
+            type: "SUBJECTIVE",
+            examId,
+            modelAnswer: q.modelAnswer
+          }
+        }));
+      }
+    }
+
+    res.json(savedQuestions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post("/ai/grade-answer", auth, requireRole("TEACHER"), async (req, res) => {
+  const { answerId } = req.body;
+  try {
+    const answer = await prisma.answer.findUnique({
+      where: { id: answerId },
+      include: { question: true }
+    });
+
+    if (!answer) return res.status(404).json({ error: "Answer not found" });
+    if (answer.question.type !== "SUBJECTIVE") {
+      return res.status(400).json({ error: "Only subjective answers can be AI graded." });
+    }
+
+    const maxMarks = answer.question.marks;
+    const modelAns = answer.question.modelAnswer || "";
+    const studentAns = answer.answerText || "";
+
+    const prompt = `You are an expert evaluator. Here is a subjective question string, the expected model answer, and the student's typed response.
+Question: "${answer.question.questionText}"
+Model Answer: "${modelAns}"
+Student's Response: "${studentAns}"
+Maximum Marks: ${maxMarks}
+
+Evaluate the student's answer. Give a suggested score out of ${maxMarks} and construct a short constructive feedback paragraph.
+Return EXACTLY a JSON object with NO markdown enclosing, NO extra text:
+{
+  "suggestedScore": integer,
+  "feedback": "Your brief feedback here"
+}`;
+
+    const result = await aiModel.generateContent(prompt);
+    let textResult = result.response.text();
+    textResult = textResult.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+    let evaluation;
+    try {
+      evaluation = JSON.parse(textResult);
+    } catch (parseErr) {
+      console.error("AI returned invalid JSON:", textResult);
+      return res.status(500).json({ error: "AI returned invalid format." });
+    }
+
+    const updated = await prisma.answer.update({
+      where: { id: answerId },
+      data: {
+        aiSuggestedScore: evaluation.suggestedScore,
+        aiFeedback: evaluation.feedback
+      }
+    });
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.patch("/ai/approve-answer", auth, requireRole("TEACHER"), async (req, res) => {
+  const { answerId, finalScore } = req.body;
+  try {
+    const updatedAnswer = await prisma.answer.update({
+      where: { id: answerId },
+      data: {
+        aiSuggestedScore: finalScore,
+        isApproved: true
+      },
+      include: {
+        submission: {
+          include: {
+            answers: {
+              include: { question: true, selectedOption: true }
+            }
+          }
+        }
+      }
+    });
+
+    const submission = updatedAnswer.submission;
+    let newTotalScore = 0;
+
+    for (const ans of submission.answers) {
+      if (ans.question.type === "MCQ") {
+        if (ans.selectedOption?.isCorrect) {
+          newTotalScore += ans.question.marks;
+        }
+      } else if (ans.question.type === "SUBJECTIVE" && ans.isApproved) {
+        if (ans.aiSuggestedScore !== null) {
+          newTotalScore += ans.aiSuggestedScore;
+        }
+      }
+    }
+
+    const updatedSubmission = await prisma.submission.update({
+      where: { id: submission.id },
+      data: { totalScore: newTotalScore }
+    });
+
+    res.json(updatedSubmission);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

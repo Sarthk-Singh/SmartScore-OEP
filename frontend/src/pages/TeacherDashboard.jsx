@@ -23,6 +23,7 @@ const TeacherDashboard = () => {
     const [scheduledDate, setScheduledDate] = useState('');
     const [durationMinutes, setDurationMinutes] = useState('');
     const [password, setPassword] = useState('');
+    const [topic, setTopic] = useState(''); // New topic state
     const [deletePassword, setDeletePassword] = useState('');
     const [myGrades, setMyGrades] = useState([]);
 
@@ -44,6 +45,14 @@ const TeacherDashboard = () => {
     const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
     const [bulkUploadResult, setBulkUploadResult] = useState(null);
 
+    // AI Generator State
+    const [showAIGenModal, setShowAIGenModal] = useState(false);
+    const [aiGenExam, setAiGenExam] = useState(null);
+    const [aiGenNumQuestions, setAiGenNumQuestions] = useState(5);
+    const [aiGenDifficulty, setAiGenDifficulty] = useState('Medium');
+    const [aiGenPrompt, setAiGenPrompt] = useState('');
+    const [aiGenLoading, setAiGenLoading] = useState(false);
+
     // Sidebar
     const [activeTab, setActiveTab] = useState('exams');
 
@@ -64,12 +73,12 @@ const TeacherDashboard = () => {
         try {
             await api.post('/teacher/create-exam', {
                 title, gradeId: selectedGradeId, courseId: selectedCourseId,
-                scheduledDate, durationMinutes: parseInt(durationMinutes), password
+                scheduledDate, durationMinutes: parseInt(durationMinutes), password, topic
             });
             toast.success('Exam created!');
             setShowCreateExamModal(false); fetchExams();
             setTitle(''); setSelectedGradeId(''); setSelectedCourseId('');
-            setScheduledDate(''); setDurationMinutes(''); setPassword('');
+            setScheduledDate(''); setDurationMinutes(''); setPassword(''); setTopic('');
         } catch (err) { toast.error(err.response?.data?.error || 'Failed to create exam'); }
     };
 
@@ -120,6 +129,40 @@ const TeacherDashboard = () => {
             else setBulkUploadResult({ success: false, error: d?.error || 'Upload failed' });
             toast.error(d?.error || 'Bulk upload failed');
         } finally { setBulkUploadLoading(false); }
+    };
+
+    const openAIGenModal = (exam) => {
+        setAiGenExam(exam);
+        setAiGenNumQuestions(5);
+        setAiGenDifficulty('Medium');
+        setAiGenPrompt(exam.topic ? `Generate questions about ${exam.topic}` : '');
+        setShowAIGenModal(true);
+    };
+
+    const handleAIGenerate = async (e) => {
+        e.preventDefault();
+        if (!aiGenPrompt) {
+            toast.error("Please provide a prompt for the AI.");
+            return;
+        }
+
+        setAiGenLoading(true);
+        try {
+            await api.post('/ai/generate-questions', {
+                examId: aiGenExam.id,
+                numberOfQuestions: parseInt(aiGenNumQuestions),
+                difficulty: aiGenDifficulty,
+                questionType: 'MCQ', // Fixed to MCQ for now
+                prompt: aiGenPrompt
+            });
+            toast.success('AI successfully generated questions!');
+            setShowAIGenModal(false);
+            fetchExams();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'AI Generation failed');
+        } finally {
+            setAiGenLoading(false);
+        }
     };
 
     const openManageExam = async (examId) => {
@@ -238,6 +281,7 @@ const TeacherDashboard = () => {
                                     ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
                                 </div>
                                 <div className="ad-btn-row" style={{ marginTop: 0 }}>
+                                    <button className="ad-primary-btn ad-btn-sm" style={{ backgroundColor: '#8b5cf6' }} onClick={() => openAIGenModal(exam)}>🤖 AI Gen</button>
                                     <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
                                     <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
                                     <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
@@ -296,6 +340,11 @@ const TeacherDashboard = () => {
                             <div className="ad-input-group" style={{ marginBottom: 16 }}>
                                 <label>Password (Optional)</label>
                                 <input className="ad-input" type="text" placeholder="Enter exam password" value={password} onChange={e => setPassword(e.target.value)} />
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>Topic (Optional but required for AI Gen)</label>
+                                <input className="ad-input" type="text" placeholder="e.g. React Fundamentals, Algebra..." value={topic} onChange={e => setTopic(e.target.value)} />
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Used by AI to automatically generate questions later.</div>
                             </div>
                             <button type="submit" className="ad-primary-btn">Create Exam</button>
                         </form>
@@ -491,6 +540,61 @@ const TeacherDashboard = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ========== AI GENERATOR MODAL ========== */}
+            {showAIGenModal && (
+                <div className="ad-modal-overlay" onClick={() => !aiGenLoading && setShowAIGenModal(false)}>
+                    <div className="ad-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ad-modal-title">
+                            <span>🤖 Generate Questions with AI</span>
+                            {!aiGenLoading && <button className="ad-modal-close" onClick={() => setShowAIGenModal(false)}>✕</button>}
+                        </div>
+
+                        <form onSubmit={handleAIGenerate}>
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>AI Prompt</label>
+                                <textarea
+                                    className="ad-textarea"
+                                    rows={3}
+                                    required
+                                    value={aiGenPrompt}
+                                    onChange={e => setAiGenPrompt(e.target.value)}
+                                    disabled={aiGenLoading}
+                                    placeholder="E.g., Generate difficult MCQ questions about basic algebra and fractions..."
+                                />
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                                    Describe exactly what kind of questions you want the AI to generate.
+                                </div>
+                            </div>
+
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Number of Questions</label>
+                                <input className="ad-input" type="number" min="1" max="20" required value={aiGenNumQuestions} onChange={e => setAiGenNumQuestions(e.target.value)} disabled={aiGenLoading} />
+                            </div>
+
+                            <div className="ad-input-group" style={{ marginBottom: 12 }}>
+                                <label>Difficulty</label>
+                                <select className="ad-select" value={aiGenDifficulty} onChange={e => setAiGenDifficulty(e.target.value)} disabled={aiGenLoading}>
+                                    <option value="Easy">Easy</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Hard">Hard</option>
+                                </select>
+                            </div>
+
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>Question Type</label>
+                                <select className="ad-select" disabled>
+                                    <option value="MCQ">MCQ (Multiple Choice) - Currently Supported</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" className="ad-primary-btn" disabled={aiGenLoading} style={{ width: '100%', backgroundColor: '#8b5cf6' }}>
+                                {aiGenLoading ? '🤖 Generating questions...' : 'Generate Questions'}
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

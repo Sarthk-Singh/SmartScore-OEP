@@ -72,6 +72,7 @@ model Exam {
   createdAt       DateTime @default(now())
   password        String? // Password to attempt exam
   resultsReleased Boolean  @default(false)
+  topic           String? // AI topic used for generating questions
 
   // Relations
   gradeId String
@@ -92,6 +93,7 @@ model Question {
   questionText String
   marks        Int
   type         QuestionType
+  modelAnswer  String? // AI-generated model answer for Subjective questions
 
   examId String
   exam   Exam   @relation(fields: [examId], references: [id])
@@ -132,6 +134,11 @@ model Answer {
   submissionId     String
   questionId       String
   selectedOptionId String?
+
+  answerText       String? // Student's text answer for Subjective
+  aiFeedback       String? // AI generated feedback
+  aiSuggestedScore Int?    // AI generated suggested score
+  isApproved       Boolean @default(false) // Whether the subjective score is approved
 
   submission     Submission @relation(fields: [submissionId], references: [id])
   question       Question   @relation(fields: [questionId], references: [id])
