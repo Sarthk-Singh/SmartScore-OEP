@@ -29,6 +29,7 @@ const StudentDashboard = () => {
 
     // Active sidebar tab
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [isFullscreenReady, setIsFullscreenReady] = useState(false);
 
     // Calendar month navigation
     const [calMonth, setCalMonth] = useState(new Date().getMonth());
@@ -86,8 +87,8 @@ const StudentDashboard = () => {
             setSubmissionResult(null);
             setShowPasswordModal(false);
 
-            // Initialize timer (durationMinutes * 60 seconds)
-            setTimeLeft(response.data.durationMinutes * 60);
+            // Do not start timer yet — wait for Fullscreen Modal
+            setIsFullscreenReady(true);
         } catch (err) {
             toast.error(err.response?.data?.error || 'Verification failed');
         }
@@ -106,7 +107,7 @@ const StudentDashboard = () => {
         setAnswers(prev => ({ ...prev, [questionId]: optionId }));
     };
 
-    const handleSubmitExam = async (isAutoSubmit = false) => {
+    const handleSubmitExam = async (isAutoSubmit = false, customMessage = null) => {
         const formattedAnswers = Object.entries(answers).map(([questionId, selectedOptionId]) => ({
             questionId, selectedOptionId
         }));
@@ -116,22 +117,81 @@ const StudentDashboard = () => {
                 answers: formattedAnswers
             });
             setSubmissionResult(response.data);
-            if (isAutoSubmit) {
+
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(err => console.log(err));
+            }
+
+            if (customMessage) {
+                toast.info(customMessage);
+            } else if (isAutoSubmit) {
                 toast.info("Time's up! Your exam has been submitted automatically.");
             } else {
                 toast.success('Exam submitted! Results will be available once released by the teacher.');
             }
             setActiveExam(null);
             setTimeLeft(null); // Clear timer
+            setIsFullscreenReady(false);
             fetchDashboard(); // refresh analytics
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to submit exam');
         }
     };
 
+    // Fullscreen constraints & security listeners
+    useEffect(() => {
+        // Only enforce anti-cheat if exam is fully active and fullscreen modal is cleared (timer running)
+        if (!activeExam || isFullscreenReady || timeLeft === null) return;
+
+        const handleSecurityViolation = () => {
+            handleSubmitExam(true, "Exam submitted due to fullscreen exit or window switch.");
+        };
+
+        const onFullscreenChange = () => {
+            if (!document.fullscreenElement) handleSecurityViolation();
+        };
+
+        const onVisibilityChange = () => {
+            if (document.hidden) handleSecurityViolation();
+        };
+
+        const onBlur = () => {
+            handleSecurityViolation();
+        };
+
+        const onKeyDown = (e) => {
+            // Disable Ctrl+C, Ctrl+V, etc...
+            if (
+                e.key === 'F11' ||
+                (e.ctrlKey && ['c', 'v', 'x', 't', 'w'].includes(e.key.toLowerCase())) ||
+                (e.metaKey && ['c', 'v', 'x', 't', 'w'].includes(e.key.toLowerCase())) ||
+                (e.altKey && e.key === 'Tab')
+            ) {
+                e.preventDefault();
+            }
+        };
+
+        const onContextMenu = (e) => e.preventDefault(); // disable right click
+
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('blur', onBlur);
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('contextmenu', onContextMenu);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.removeEventListener('blur', onBlur);
+            document.removeEventListener('keydown', onKeyDown);
+            document.removeEventListener('contextmenu', onContextMenu);
+        };
+    }, [activeExam, isFullscreenReady, timeLeft, answers]);
+
     // Timer effect
     useEffect(() => {
-        if (!activeExam || timeLeft === null) return;
+        if (!activeExam || isFullscreenReady || timeLeft === null) return;
 
         if (timeLeft <= 0) {
             handleSubmitExam(true);
@@ -143,7 +203,7 @@ const StudentDashboard = () => {
         }, 1000);
 
         return () => clearInterval(timerId);
-    }, [activeExam, timeLeft]);
+    }, [activeExam, isFullscreenReady, timeLeft]);
 
     // Format mm:ss
     const formatTime = (seconds) => {
@@ -205,10 +265,37 @@ const StudentDashboard = () => {
 
     // Exam taking view
     if (activeExam) {
+        if (isFullscreenReady) {
+            return (
+                <div className="sd-modal-overlay">
+                    <div className="sd-modal">
+                        <h3>Start Exam Session</h3>
+                        <p style={{ color: 'var(--sd-text-muted)', marginBottom: '20px', lineHeight: '1.5' }}>
+                            This exam will run in fullscreen mode with strict anti-cheat monitoring. <br /><br />
+                            <strong>Warning:</strong> Exiting fullscreen, switching tabs, hiding the window, or using unauthorized keyboard shortcuts will automatically submit your exam immediately.
+                        </p>
+                        <div className="sd-modal-actions">
+                            <button className="sd-btn-cancel" onClick={() => {
+                                setActiveExam(null);
+                                setIsFullscreenReady(false);
+                            }}>Cancel</button>
+                            <button className="sd-btn-submit" onClick={() => {
+                                document.documentElement.requestFullscreen().catch((err) => {
+                                    toast.error(`Error attempting to enable fullscreen: ${err.message}`);
+                                });
+                                setTimeLeft(activeExam.durationMinutes * 60);
+                                setIsFullscreenReady(false);
+                            }}>Start Exam</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         return (
-            <div className="sd-wrapper">
-                <Sidebar activeTab="exams" setActiveTab={setActiveTab} logout={logout} />
-                <div className="sd-main">
+            <div className="sd-wrapper" style={{ minHeight: '100vh', background: 'var(--sd-bg)', color: 'var(--sd-text)' }}>
+                {/* Fullscreen doesn't render sidebar well often, but we keep it relative */}
+                <div className="sd-main" style={{ marginLeft: 0, width: '100%', padding: '40px' }}>
                     <div className="sd-exam-view">
                         <div className="sd-exam-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2>{activeExam.title}</h2>
