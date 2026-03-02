@@ -9,6 +9,9 @@ import multer from "multer";
 import csvParser from "csv-parser";
 import { Readable } from "stream";
 import { aiModel } from "../utils/gemini.js";
+import { OAuth2Client } from "google-auth-library";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -91,6 +94,52 @@ apiRouter.post("/login", async (req, res) => {
     res.json({ token, firstLogin: user.firstLogin });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Google OAuth Login Endpoint
+apiRouter.post("/auth/google", async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) return res.status(400).json({ error: "No ID token provided" });
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, sub: googleId } = payload;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(401).json({ error: "You are not registered on this platform. Please contact your administrator." });
+    }
+
+    if (user.role === "ADMIN") {
+      return res.status(401).json({ error: "Admin accounts cannot use Google login." });
+    }
+
+    // Update user to link Google Auth if not linked
+    if (!user.googleId || user.authMethod !== "google") {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId, authMethod: "google" }
+      });
+    }
+
+    // Generate token and bypass firstLogin mechanism since OAuth acts as verification
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, firstLogin: false },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({ token, firstLogin: false });
+  } catch (err) {
+    console.error("Google Auth verification failed:", err.message);
+    res.status(401).json({ error: "Invalid Google token" });
   }
 });
 

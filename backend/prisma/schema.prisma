@@ -61,6 +61,14 @@ model User {
   teachingGrades Grade[] @relation("TeacherGrades")
   createdExams   Exam[]  @relation("ExamCreator")
 
+  // Google Login Auth
+  googleId   String?  @unique
+  authMethod String?
+
+  // Password Reset
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+
   submissions Submission[]
 }
 

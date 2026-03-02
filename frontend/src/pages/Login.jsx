@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import { jwtDecode } from 'jwt-decode';
+import { GoogleLogin } from '@react-oauth/google';
 import './Login.css';
 
 const Login = () => {
@@ -69,6 +70,34 @@ const Login = () => {
         } catch (err) {
             toast.error(err.response?.data?.error || "Failed to change password");
         }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        try {
+            setLoading(true);
+            const { credential } = credentialResponse;
+            const response = await api.post('/auth/google', { idToken: credential });
+
+            const { token } = response.data;
+            localStorage.setItem('token', token);
+
+            // Decode to find role and redirect
+            const decoded = jwtDecode(token);
+            toast.success("Logged in with Google successfully!");
+
+            // Hard redirect to force AuthContext reload
+            if (decoded.role === 'ADMIN') window.location.href = '/admin';
+            else if (decoded.role === 'TEACHER') window.location.href = '/teacher';
+            else if (decoded.role === 'STUDENT') window.location.href = '/student';
+
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Google Login failed');
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleError = () => {
+        toast.error('Google Sign-In was unsuccessful. Please try again.');
     };
 
     return (
@@ -141,6 +170,22 @@ const Login = () => {
                         <button type="submit" className="login-submit-btn" disabled={loading}>
                             {loading ? 'Signing in...' : 'Log In'}
                         </button>
+
+                        <div className="login-divider">
+                            <span>or</span>
+                        </div>
+
+                        <div className="google-login-wrapper">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={handleGoogleError}
+                                useOneTap={false}
+                                shape="pill"
+                                theme="filled_black"
+                                text="continue_with"
+                                width="100%"
+                            />
+                        </div>
                     </form>
 
                     <div className="login-footer">
