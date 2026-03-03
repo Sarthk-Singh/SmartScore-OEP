@@ -165,6 +165,14 @@ const Login = () => {
                                     onChange={e => setPassword(e.target.value)}
                                 />
                             </div>
+                            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                                <span
+                                    style={{ fontSize: '12px', color: 'var(--lg-accent-light)', cursor: 'pointer', fontWeight: '500' }}
+                                    onClick={() => navigate('/forgot-password')}
+                                >
+                                    Forgot Password?
+                                </span>
+                            </div>
                         </div>
 
                         <button type="submit" className="login-submit-btn" disabled={loading}>

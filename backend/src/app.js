@@ -10,6 +10,8 @@ import csvParser from "csv-parser";
 import { Readable } from "stream";
 import { aiModel } from "../utils/gemini.js";
 import { OAuth2Client } from "google-auth-library";
+import crypto from "crypto";
+import transporter from "../utils/mailer.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -140,6 +142,90 @@ apiRouter.post("/auth/google", async (req, res) => {
   } catch (err) {
     console.error("Google Auth verification failed:", err.message);
     res.status(401).json({ error: "Invalid Google token" });
+  }
+});
+
+// Forgot Password Endpoint
+apiRouter.post("/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // For security, do not reveal if the email exists unless they are ADMIN.
+    if (!user) {
+      return res.json({ message: "If this email is registered you will receive a reset link shortly." });
+    }
+
+    if (user.role === "ADMIN") {
+      return res.status(400).json({ error: "Bro you're the ADMIN. How did you forget YOUR OWN password? Go check your notes or something 💀" });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken, resetTokenExpiry }
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Password Reset Request - SmartScore OEP",
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; border: 1px solid #eaeaea; border-radius: 10px;">
+            <h2 style="color: #6366f1;">SmartScore Password Reset</h2>
+            <p style="font-size: 16px; color: #333;">You requested a password reset for your SmartScore account.</p>
+            <p style="font-size: 16px; color: #333;">Click the button below to set a new password. This link will expire in 1 hour.</p>
+            <a href="${resetLink}" style="display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+            <p style="font-size: 12px; color: #999; margin-top: 30px;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
+    } catch (error) {
+      console.error("Email send failed:", error.message);
+    }
+
+    res.json({ message: "If this email is registered you will receive a reset link shortly." });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "An error occurred while processing your request." });
+  }
+});
+
+// Reset Password Endpoint
+apiRouter.post("/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ error: "Token and new password are required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { resetToken: token } });
+
+    if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        firstLogin: false,
+        resetToken: null,
+        resetTokenExpiry: null
+      }
+    });
+
+    res.json({ message: "Password has been successfully reset. You can now log in." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "An error occurred while resetting your password." });
   }
 });
 
