@@ -18,6 +18,7 @@ const StudentDashboard = () => {
     const [answers, setAnswers] = useState({});
     const [submissionResult, setSubmissionResult] = useState(null);
     const [viewingResult, setViewingResult] = useState(null);
+    const [resultFeedbackExpanded, setResultFeedbackExpanded] = useState({});
 
     // Exam Timer
     const [timeLeft, setTimeLeft] = useState(null);
@@ -104,12 +105,18 @@ const StudentDashboard = () => {
     };
 
     const handleOptionSelect = (questionId, optionId) => {
-        setAnswers(prev => ({ ...prev, [questionId]: optionId }));
+        setAnswers(prev => ({ ...prev, [questionId]: { ...prev[questionId], selectedOptionId: optionId } }));
+    };
+
+    const handleAnswerText = (questionId, text) => {
+        setAnswers(prev => ({ ...prev, [questionId]: { ...prev[questionId], answerText: text } }));
     };
 
     const handleSubmitExam = async (isAutoSubmit = false, customMessage = null) => {
-        const formattedAnswers = Object.entries(answers).map(([questionId, selectedOptionId]) => ({
-            questionId, selectedOptionId
+        const formattedAnswers = activeExam.questions.map(q => ({
+            questionId: q.id,
+            selectedOptionId: q.type === 'MCQ' ? (answers[q.id]?.selectedOptionId || null) : null,
+            answerText: q.type === 'SUBJECTIVE' ? (answers[q.id]?.answerText || '') : null,
         }));
         try {
             const response = await api.post('/student/submit-exam', {
@@ -317,18 +324,59 @@ const StudentDashboard = () => {
                                     <span className="sd-question-num">{idx + 1}.</span>
                                     <span>{q.questionText} <span className="sd-question-marks">({q.marks} marks)</span></span>
                                 </div>
-                                <div className="sd-options-list">
-                                    {q.options.map(opt => (
-                                        <div
-                                            key={opt.id}
-                                            className={`sd-option-item ${answers[q.id] === opt.id ? 'selected' : ''}`}
-                                            onClick={() => handleOptionSelect(q.id, opt.id)}
-                                        >
-                                            <div className="sd-option-radio"></div>
-                                            {opt.optionText}
-                                        </div>
-                                    ))}
-                                </div>
+
+                                {q.type === 'MCQ' ? (
+                                    <div className="sd-options-list">
+                                        {q.options.map(opt => (
+                                            <div
+                                                key={opt.id}
+                                                className={`sd-option-item ${answers[q.id]?.selectedOptionId === opt.id ? 'selected' : ''}`}
+                                                onClick={() => handleOptionSelect(q.id, opt.id)}
+                                            >
+                                                <div className="sd-option-radio"></div>
+                                                {opt.optionText}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ position: 'relative' }}>
+                                        <textarea
+                                            placeholder="Write your answer here..."
+                                            value={answers[q.id]?.answerText || ''}
+                                            onChange={e => handleAnswerText(q.id, e.target.value)}
+                                            rows={5}
+                                            style={{
+                                                width: '100%',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                border: '1px solid rgba(255,255,255,0.12)',
+                                                borderRadius: 10,
+                                                color: 'var(--sd-text)',
+                                                padding: '12px 14px',
+                                                paddingBottom: '28px',
+                                                fontSize: 14,
+                                                lineHeight: 1.6,
+                                                resize: 'vertical',
+                                                outline: 'none',
+                                                boxSizing: 'border-box',
+                                                fontFamily: 'inherit',
+                                                transition: 'border-color 0.2s',
+                                            }}
+                                            onFocus={e => e.target.style.borderColor = 'rgba(139,92,246,0.5)'}
+                                            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
+                                        />
+                                        <span style={{
+                                            position: 'absolute',
+                                            bottom: 8,
+                                            right: 12,
+                                            fontSize: 11,
+                                            color: 'var(--sd-text-muted)',
+                                            pointerEvents: 'none',
+                                            userSelect: 'none',
+                                        }}>
+                                            {(answers[q.id]?.answerText || '').length} chars
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                         <button className="sd-submit-exam-btn" onClick={() => handleSubmitExam(false)}>
@@ -632,26 +680,125 @@ const StudentDashboard = () => {
 
             {/* Result Modal */}
             {viewingResult && (
-                <div className="sd-modal-overlay" onClick={() => setViewingResult(null)}>
-                    <div className="sd-modal lg" onClick={e => e.stopPropagation()}>
-                        <div className="sd-modal-title">
+                <div className="sd-modal-overlay" onClick={() => { setViewingResult(null); setResultFeedbackExpanded({}); }}>
+                    <div
+                        className="sd-modal lg"
+                        onClick={e => e.stopPropagation()}
+                        style={{ maxWidth: 720, maxHeight: '90vh', overflowY: 'auto' }}
+                    >
+                        <div
+                            className="sd-modal-title"
+                            style={{ position: 'sticky', top: 0, background: 'var(--sd-card)', zIndex: 10, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+                        >
                             <span>📊 Exam Result</span>
-                            <button className="sd-modal-close" onClick={() => setViewingResult(null)}>✕</button>
+                            <button className="sd-modal-close" onClick={() => { setViewingResult(null); setResultFeedbackExpanded({}); }}>✕</button>
                         </div>
+
                         <div className="sd-result-modal-score">
                             Total Score: {viewingResult.totalScore}
                         </div>
-                        {viewingResult.answers?.map((ans, idx) => (
-                            <div key={ans.id} className="sd-result-answer">
-                                <div className="sd-result-answer-q">
-                                    Q{idx + 1}: {ans.question.questionText} ({ans.question.marks} marks)
-                                </div>
-                                <div className={`sd-result-answer-a ${ans.selectedOption?.isCorrect ? 'correct' : 'incorrect'}`}>
-                                    Your Answer: {ans.selectedOption?.optionText || 'Unanswered'}
-                                    {ans.selectedOption?.isCorrect ? ' ✓ Correct' : ' ✗ Incorrect'}
-                                </div>
-                            </div>
-                        ))}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 24 }}>
+                            {viewingResult.answers?.map((ans, idx) => {
+                                const isMCQ = ans.question.type === 'MCQ';
+                                const isFeedbackOpen = !!resultFeedbackExpanded[ans.id];
+                                return (
+                                    <div key={ans.id} style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: `1px solid ${isMCQ ? 'rgba(99,102,241,0.18)' : 'rgba(139,92,246,0.22)'}`,
+                                        borderRadius: 12,
+                                        padding: '14px 16px',
+                                    }}>
+                                        {/* Question header */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <span style={{
+                                                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                                                background: isMCQ ? 'rgba(99,102,241,0.12)' : 'rgba(139,92,246,0.12)',
+                                                color: isMCQ ? '#818cf8' : '#a78bfa',
+                                                border: `1px solid ${isMCQ ? 'rgba(99,102,241,0.28)' : 'rgba(139,92,246,0.28)'}`,
+                                            }}>{isMCQ ? 'MCQ' : 'Subjective'}</span>
+                                            <span style={{ fontSize: 12, color: 'var(--sd-text-muted)' }}>
+                                                Q{idx + 1} · {ans.question.marks} mark{ans.question.marks !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0', lineHeight: 1.5, marginBottom: 10 }}>
+                                            {ans.question.questionText}
+                                        </div>
+
+                                        {isMCQ ? (
+                                            /* MCQ answer */
+                                            <div className={`sd-result-answer-a ${ans.selectedOption?.isCorrect ? 'correct' : 'incorrect'}`}>
+                                                Your Answer: {ans.selectedOption?.optionText || 'Unanswered'}
+                                                {ans.selectedOption?.isCorrect ? ' ✓ Correct' : ' ✗ Incorrect'}
+                                            </div>
+                                        ) : (
+                                            /* Subjective answer */
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                {/* Written answer */}
+                                                <div style={{
+                                                    background: 'rgba(255,255,255,0.04)',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                    borderRadius: 8, padding: '10px 14px',
+                                                    fontSize: 13, color: '#e2e8f0',
+                                                    lineHeight: 1.6, whiteSpace: 'pre-wrap', minHeight: 36,
+                                                }}>
+                                                    {ans.answerText || <em style={{ color: 'var(--sd-text-muted)' }}>No answer written</em>}
+                                                </div>
+
+                                                {/* Score badge */}
+                                                {(ans.finalScore !== null && ans.finalScore !== undefined) && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                        <span style={{ color: 'var(--sd-text-muted)' }}>🤖 AI Score:</span>
+                                                        <span style={{
+                                                            fontWeight: 700, color: '#818cf8',
+                                                            background: 'rgba(129,140,248,0.12)',
+                                                            padding: '2px 8px', borderRadius: 6,
+                                                            border: '1px solid rgba(129,140,248,0.25)',
+                                                        }}>{ans.finalScore} / {ans.question.marks}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Collapsible AI feedback */}
+                                                {ans.aiFeedback && (
+                                                    <div>
+                                                        <button
+                                                            onClick={() => setResultFeedbackExpanded(prev => ({ ...prev, [ans.id]: !prev[ans.id] }))}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                                color: '#a78bfa', fontSize: 12, padding: 0, fontWeight: 500,
+                                                                display: 'flex', alignItems: 'center', gap: 5,
+                                                            }}
+                                                        >
+                                                            <span style={{
+                                                                fontSize: 10, display: 'inline-block',
+                                                                transform: isFeedbackOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                                                transition: 'transform 0.2s'
+                                                            }}>▶</span>
+                                                            AI Feedback 💡
+                                                        </button>
+                                                        <div style={{
+                                                            overflow: 'hidden',
+                                                            maxHeight: isFeedbackOpen ? 300 : 0,
+                                                            transition: 'max-height 0.3s ease',
+                                                        }}>
+                                                            <div style={{
+                                                                marginTop: 8, padding: '10px 14px',
+                                                                background: 'rgba(167,139,250,0.06)',
+                                                                border: '1px solid rgba(167,139,250,0.18)',
+                                                                borderRadius: 8, fontSize: 13,
+                                                                color: '#c4b5fd', lineHeight: 1.6,
+                                                            }}>
+                                                                {ans.aiFeedback}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             )}

@@ -1561,7 +1561,7 @@ apiRouter.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req,
   const { examId, answers } = req.body;
 
   try {
-    // create submission
+    // Create submission — save answerText for SUBJECTIVE answers
     const submission = await prisma.submission.create({
       data: {
         examId,
@@ -1569,7 +1569,8 @@ apiRouter.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req,
         answers: {
           create: answers.map(a => ({
             questionId: a.questionId,
-            selectedOptionId: a.selectedOptionId,
+            selectedOptionId: a.selectedOptionId || null,
+            answerText: a.answerText || null,
           })),
         },
       },
@@ -1583,21 +1584,89 @@ apiRouter.post("/student/submit-exam", auth, requireRole("STUDENT"), async (req,
       },
     });
 
-    // auto-evaluate MCQs
-    let totalScore = 0;
-
+    // Auto-evaluate MCQs and get the initial MCQ score
+    let mcqScore = 0;
     for (const ans of submission.answers) {
-      if (ans.selectedOption?.isCorrect) {
-        totalScore += ans.question.marks;
+      if (ans.question.type === "MCQ" && ans.selectedOption?.isCorrect) {
+        mcqScore += ans.question.marks;
       }
     }
 
     const updated = await prisma.submission.update({
       where: { id: submission.id },
-      data: { totalScore },
+      data: { totalScore: mcqScore },
     });
 
+    // Respond immediately — never block the student
     res.json(updated);
+
+    // Background: AI-grade all SUBJECTIVE answers
+    setImmediate(async () => {
+      try {
+        console.log(`[Background AI] Starting subjective grading for submission: ${submission.id}`);
+
+        const subjectiveAnswers = submission.answers.filter(a => a.question.type === "SUBJECTIVE");
+        if (subjectiveAnswers.length === 0) return;
+
+        for (const ans of subjectiveAnswers) {
+          try {
+            const maxMarks = ans.question.marks;
+            const modelAns = ans.question.modelAnswer || "";
+            const studentAns = ans.answerText || "";
+
+            const prompt = `You are an expert evaluator. Evaluate the student's answer to this subjective question.
+Question: "${ans.question.questionText}"
+Model Answer: "${modelAns}"
+Student's Answer: "${studentAns}"
+Maximum Marks: ${maxMarks}
+
+Return ONLY a raw JSON object with NO markdown, NO extra text:
+{ "suggestedScore": integer, "feedback": "brief constructive feedback" }`;
+
+            const result = await aiModel.generateContent(prompt);
+            let text = result.response.text().replace(/```json/gi, "").replace(/```/g, "").trim();
+            const evaluation = JSON.parse(text);
+
+            const suggestedScore = Math.min(Math.max(0, evaluation.suggestedScore), maxMarks);
+
+            await prisma.answer.update({
+              where: { id: ans.id },
+              data: {
+                aiSuggestedScore: suggestedScore,
+                aiFeedback: evaluation.feedback,
+                finalScore: suggestedScore,
+              },
+            });
+            console.log(`[Background AI] Graded answer ${ans.id}: ${suggestedScore}/${maxMarks}`);
+          } catch (ansErr) {
+            console.error(`[Background AI Error] Failed to grade answer ${ans.id}:`, ansErr.message);
+          }
+        }
+
+        // Recalculate totalScore: MCQ auto-scores + all subjective finalScores
+        const allAnswers = await prisma.answer.findMany({
+          where: { submissionId: submission.id },
+          include: { question: true, selectedOption: true },
+        });
+
+        let newTotal = 0;
+        for (const a of allAnswers) {
+          if (a.question.type === "MCQ") {
+            if (a.selectedOption?.isCorrect) newTotal += a.question.marks;
+          } else if (a.question.type === "SUBJECTIVE") {
+            if (a.finalScore !== null && a.finalScore !== undefined) newTotal += a.finalScore;
+          }
+        }
+
+        await prisma.submission.update({
+          where: { id: submission.id },
+          data: { totalScore: newTotal },
+        });
+        console.log(`[Background AI] Updated submission ${submission.id} totalScore to ${newTotal}`);
+      } catch (bgErr) {
+        console.error(`[Background AI Error] Subjective grading failed for submission ${submission.id}:`, bgErr.message);
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1822,6 +1891,129 @@ apiRouter.patch("/ai/approve-answer", auth, requireRole("TEACHER"), async (req, 
     });
 
     res.json(updatedSubmission);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher overrides a subjective answer score
+apiRouter.patch("/submissions/answers/:answerId/override", auth, requireRole("TEACHER"), async (req, res) => {
+  const { answerId } = req.params;
+  const { overriddenScore } = req.body;
+
+  if (overriddenScore === undefined || overriddenScore === null) {
+    return res.status(400).json({ error: "overriddenScore is required" });
+  }
+
+  try {
+    const answer = await prisma.answer.findUnique({
+      where: { id: answerId },
+      include: {
+        question: true,
+        submission: {
+          include: {
+            answers: { include: { question: true, selectedOption: true } },
+          },
+        },
+      },
+    });
+
+    if (!answer) return res.status(404).json({ error: "Answer not found" });
+    if (answer.question.type !== "SUBJECTIVE") {
+      return res.status(400).json({ error: "Only subjective answers can be overridden" });
+    }
+
+    const score = parseInt(overriddenScore, 10);
+    if (isNaN(score) || score < 0 || score > answer.question.marks) {
+      return res.status(400).json({
+        error: `overriddenScore must be between 0 and ${answer.question.marks}`
+      });
+    }
+
+    // Update the answer
+    const updatedAnswer = await prisma.answer.update({
+      where: { id: answerId },
+      data: { overriddenScore: score, finalScore: score },
+    });
+
+    // Recalculate submission totalScore
+    const allAnswers = answer.submission.answers.map(a =>
+      a.id === answerId ? { ...a, finalScore: score } : a
+    );
+
+    let newTotal = 0;
+    for (const a of allAnswers) {
+      if (a.question.type === "MCQ") {
+        if (a.selectedOption?.isCorrect) newTotal += a.question.marks;
+      } else if (a.question.type === "SUBJECTIVE") {
+        const fs = a.id === answerId ? score : (a.finalScore ?? 0);
+        newTotal += fs;
+      }
+    }
+
+    await prisma.submission.update({
+      where: { id: answer.submissionId },
+      data: { totalScore: newTotal },
+    });
+
+    res.json({ answer: updatedAnswer, newTotalScore: newTotal });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher views full submission details
+apiRouter.get("/submissions/:submissionId/details", auth, requireRole("TEACHER"), async (req, res) => {
+  const { submissionId } = req.params;
+  try {
+    const submission = await prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: {
+        student: { select: { name: true, email: true } },
+        exam: {
+          select: {
+            title: true,
+            questions: { select: { marks: true } },
+          },
+        },
+        answers: {
+          include: {
+            question: { select: { questionText: true, type: true, marks: true } },
+            selectedOption: { select: { optionText: true, isCorrect: true } },
+          },
+        },
+      },
+    });
+
+    if (!submission) return res.status(404).json({ error: "Submission not found" });
+
+    const maxPossibleScore = submission.exam.questions.reduce((sum, q) => sum + q.marks, 0);
+
+    const answerDetails = submission.answers.map(a => ({
+      answerId: a.id,
+      questionText: a.question.questionText,
+      questionType: a.question.type,
+      marks: a.question.marks,
+      // MCQ fields
+      selectedOptionText: a.selectedOption?.optionText || null,
+      isCorrect: a.question.type === "MCQ" ? (a.selectedOption?.isCorrect ?? false) : null,
+      // Subjective fields
+      answerText: a.answerText,
+      aiSuggestedScore: a.aiSuggestedScore,
+      aiFeedback: a.aiFeedback,
+      overriddenScore: a.overriddenScore,
+      finalScore: a.finalScore,
+    }));
+
+    res.json({
+      submissionId: submission.id,
+      submittedAt: submission.submittedAt,
+      totalScore: submission.totalScore,
+      maxPossibleScore,
+      student: submission.student,
+      examTitle: submission.exam.title,
+      answers: answerDetails,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

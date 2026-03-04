@@ -146,6 +146,8 @@ model Answer {
   answerText       String? // Student's text answer for Subjective
   aiFeedback       String? // AI generated feedback
   aiSuggestedScore Int?    // AI generated suggested score
+  overriddenScore  Int?    // Teacher's manual override score
+  finalScore       Int?    // Resolved final score (aiSuggestedScore or overriddenScore)
   isApproved       Boolean @default(false) // Whether the subjective score is approved
 
   submission     Submission @relation(fields: [submissionId], references: [id])

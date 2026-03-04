@@ -16,6 +16,13 @@ const TeacherDashboard = () => {
     const [examSubmissions, setExamSubmissions] = useState([]);
     const [currentExamResultsReleased, setCurrentExamResultsReleased] = useState(false);
 
+    // Submission Review Panel
+    const [reviewData, setReviewData] = useState(null);
+    const [reviewLoading, setReviewLoading] = useState(false);
+    const [editingAnswerId, setEditingAnswerId] = useState(null);
+    const [editScore, setEditScore] = useState('');
+    const [expandedFeedback, setExpandedFeedback] = useState({});
+
     // Exam Form State
     const [title, setTitle] = useState('');
     const [selectedGradeId, setSelectedGradeId] = useState('');
@@ -30,6 +37,7 @@ const TeacherDashboard = () => {
     const availableCourses = myGrades.find(g => g.id === selectedGradeId)?.courses || [];
 
     // Question Form State
+    const [questionType, setQuestionType] = useState('MCQ');
     const [questionText, setQuestionText] = useState('');
     const [marks, setMarks] = useState(1);
     const [option1, setOption1] = useState('');
@@ -50,6 +58,7 @@ const TeacherDashboard = () => {
     const [aiGenExam, setAiGenExam] = useState(null);
     const [aiGenNumQuestions, setAiGenNumQuestions] = useState(5);
     const [aiGenDifficulty, setAiGenDifficulty] = useState('Medium');
+    const [aiGenQuestionType, setAiGenQuestionType] = useState('MCQ');
     const [aiGenPrompt, setAiGenPrompt] = useState('');
     const [aiGenLoading, setAiGenLoading] = useState(false);
 
@@ -84,23 +93,29 @@ const TeacherDashboard = () => {
 
     const handleAddQuestion = async (e) => {
         e.preventDefault();
-        const opts = [
-            { optionText: option1, isCorrect: correctOptionIndex === 0 },
-            { optionText: option2, isCorrect: correctOptionIndex === 1 },
-            { optionText: option3, isCorrect: correctOptionIndex === 2 },
-            { optionText: option4, isCorrect: correctOptionIndex === 3 },
-        ];
+        const payload = {
+            examId: selectedExamId,
+            type: questionType,
+            questionText,
+            marks: parseInt(marks),
+        };
+        if (questionType === 'MCQ') {
+            payload.options = [
+                { optionText: option1, isCorrect: correctOptionIndex === 0 },
+                { optionText: option2, isCorrect: correctOptionIndex === 1 },
+                { optionText: option3, isCorrect: correctOptionIndex === 2 },
+                { optionText: option4, isCorrect: correctOptionIndex === 3 },
+            ];
+        }
         try {
-            await api.post('/teacher/add-question', {
-                examId: selectedExamId, type: 'MCQ', questionText, marks: parseInt(marks), options: opts
-            });
-            toast.success('Question added!');
-            setQuestionText(''); setOption1(''); setOption2(''); setOption3(''); setOption4('');
+            await api.post('/teacher/add-question', payload);
+            toast.success(`${questionType === 'MCQ' ? 'MCQ' : 'Subjective'} question added!`);
+            setQuestionText(''); setMarks(1); setOption1(''); setOption2(''); setOption3(''); setOption4('');
             setCorrectOptionIndex(0);
         } catch (err) { toast.error(err.response?.data?.error || 'Failed to add question'); }
     };
 
-    const openAddQuestion = (examId) => { setSelectedExamId(examId); setShowAddQuestionModal(true); };
+    const openAddQuestion = (examId) => { setSelectedExamId(examId); setQuestionType('MCQ'); setShowAddQuestionModal(true); };
 
     const openBulkUpload = (examId) => {
         setBulkUploadExamId(examId); setBulkUploadFile(null); setBulkUploadResult(null);
@@ -152,7 +167,7 @@ const TeacherDashboard = () => {
                 examId: aiGenExam.id,
                 numberOfQuestions: parseInt(aiGenNumQuestions),
                 difficulty: aiGenDifficulty,
-                questionType: 'MCQ', // Fixed to MCQ for now
+                questionType: aiGenQuestionType,
                 prompt: aiGenPrompt
             });
             toast.success('AI successfully generated questions!');
@@ -198,6 +213,48 @@ const TeacherDashboard = () => {
             const r = await api.get(`/teacher/exam/${exam.id}/submissions`);
             setExamSubmissions(r.data); setShowResultsModal(true);
         } catch { toast.error("Failed to load submissions"); }
+    };
+
+    const openReviewPanel = async (submissionId) => {
+        setReviewData(null);
+        setEditingAnswerId(null);
+        setExpandedFeedback({});
+        setReviewLoading(true);
+        try {
+            const r = await api.get(`/submissions/${submissionId}/details`);
+            setReviewData(r.data);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to load submission details');
+        } finally {
+            setReviewLoading(false);
+        }
+    };
+
+    const handleOverrideScore = async (answerId, maxMarks) => {
+        const score = parseInt(editScore, 10);
+        if (isNaN(score) || score < 0 || score > maxMarks) {
+            toast.error(`Score must be between 0 and ${maxMarks}`);
+            return;
+        }
+        try {
+            const r = await api.patch(`/submissions/answers/${answerId}/override`, { overriddenScore: score });
+            // Update reviewData in place — answers + total
+            setReviewData(prev => ({
+                ...prev,
+                totalScore: r.data.newTotalScore,
+                answers: prev.answers.map(a =>
+                    a.answerId === answerId ? { ...a, overriddenScore: score, finalScore: score } : a
+                )
+            }));
+            // Also patch the examSubmissions row so the results table stays in sync
+            setExamSubmissions(prev => prev.map(s =>
+                s.id === reviewData.submissionId ? { ...s, totalScore: r.data.newTotalScore } : s
+            ));
+            setEditingAnswerId(null);
+            toast.success('Score overridden successfully!');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to override score');
+        }
     };
 
     const toggleReleaseResults = async () => {
@@ -361,27 +418,58 @@ const TeacherDashboard = () => {
                             <button className="ad-modal-close" onClick={() => setShowAddQuestionModal(false)}>✕</button>
                         </div>
                         <form onSubmit={handleAddQuestion}>
+                            {/* Question Type Dropdown */}
+                            <div className="ad-input-group" style={{ marginBottom: 16 }}>
+                                <label>Question Type</label>
+                                <select
+                                    className="ad-select"
+                                    value={questionType}
+                                    onChange={e => setQuestionType(e.target.value)}
+                                >
+                                    <option value="MCQ">MCQ (Multiple Choice)</option>
+                                    <option value="SUBJECTIVE">Subjective (AI Graded)</option>
+                                </select>
+                            </div>
+
                             <div className="ad-input-group" style={{ marginBottom: 12 }}>
                                 <label>Question Text</label>
                                 <textarea className="ad-textarea" rows={3} required value={questionText} onChange={e => setQuestionText(e.target.value)} />
                             </div>
                             <div className="ad-input-group" style={{ marginBottom: 16 }}>
                                 <label>Marks</label>
-                                <input className="ad-input" type="number" required value={marks} onChange={e => setMarks(e.target.value)} />
+                                <input className="ad-input" type="number" min="1" required value={marks} onChange={e => setMarks(e.target.value)} />
                             </div>
 
-                            <label style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12, display: 'block' }}>Options</label>
-                            <div className="ad-radio-group" style={{ marginBottom: 16 }}>
-                                {[0, 1, 2, 3].map(idx => (
-                                    <div key={idx} className="ad-radio-item">
-                                        <input type="radio" name="correctOpt" checked={correctOptionIndex === idx}
-                                            onChange={() => setCorrectOptionIndex(idx)} />
-                                        <label>Correct</label>
-                                        <input className="ad-input" placeholder={`Option ${idx + 1}`} required
-                                            value={optionValues[idx]} onChange={e => optionSetters[idx](e.target.value)} />
+                            {questionType === 'MCQ' && (
+                                <>
+                                    <label style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12, display: 'block' }}>Options</label>
+                                    <div className="ad-radio-group" style={{ marginBottom: 16 }}>
+                                        {[0, 1, 2, 3].map(idx => (
+                                            <div key={idx} className="ad-radio-item">
+                                                <input type="radio" name="correctOpt" checked={correctOptionIndex === idx}
+                                                    onChange={() => setCorrectOptionIndex(idx)} />
+                                                <label>Correct</label>
+                                                <input className="ad-input" placeholder={`Option ${idx + 1}`} required
+                                                    value={optionValues[idx]} onChange={e => optionSetters[idx](e.target.value)} />
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </>
+                            )}
+
+                            {questionType === 'SUBJECTIVE' && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)',
+                                    borderRadius: 8, padding: '10px 14px', marginBottom: 16
+                                }}>
+                                    <span style={{ fontSize: 16 }}>🤖</span>
+                                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                                        AI will automatically generate a model answer in the background.
+                                    </span>
+                                </div>
+                            )}
+
                             <button type="submit" className="ad-primary-btn">Add Question</button>
                         </form>
                     </div>
@@ -466,6 +554,12 @@ const TeacherDashboard = () => {
                                             <td style={{ textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                                                     <button
+                                                        className="ad-primary-btn ad-btn-sm"
+                                                        title="Review Answers"
+                                                        onClick={() => openReviewPanel(sub.id)}
+                                                        style={{ background: '#6366f1', fontSize: 12 }}
+                                                    >🔍 Review</button>
+                                                    <button
                                                         className="ad-info-btn ad-btn-sm"
                                                         title="Edit Marks"
                                                         onClick={() => handleEditScore(sub.id, sub.totalScore)}
@@ -486,6 +580,230 @@ const TeacherDashboard = () => {
                                     ))}
                                 </tbody>
                             </table>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ========== SUBMISSION REVIEW PANEL ========== */}
+            {(reviewLoading || reviewData) && (
+                <div className="ad-modal-overlay" onClick={() => { setReviewData(null); setReviewLoading(false); }}>
+                    <div
+                        className="ad-modal lg"
+                        onClick={e => e.stopPropagation()}
+                        style={{ maxWidth: 780, maxHeight: '90vh', overflowY: 'auto' }}
+                    >
+                        <div className="ad-modal-title" style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                            <span>🔍 Review Submission</span>
+                            <button className="ad-modal-close" onClick={() => { setReviewData(null); setEditingAnswerId(null); }}>✕</button>
+                        </div>
+
+                        {reviewLoading && (
+                            <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                <div style={{ fontSize: 28, marginBottom: 12 }}>⏳</div>
+                                Loading submission details...
+                            </div>
+                        )}
+
+                        {reviewData && (
+                            <>
+                                {/* ── Header ── */}
+                                <div style={{ padding: '20px 0 16px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                        <div>
+                                            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                                                {reviewData.student.name}
+                                                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 10 }}>{reviewData.student.email}</span>
+                                            </div>
+                                            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>📋 {reviewData.examTitle}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: 22, fontWeight: 800, color: '#818cf8' }}>
+                                                {reviewData.totalScore} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-secondary)' }}>/ {reviewData.maxPossibleScore}</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                                {reviewData.maxPossibleScore > 0 ? Math.round((reviewData.totalScore / reviewData.maxPossibleScore) * 100) : 0}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginBottom: 10 }}>
+                                        <div style={{
+                                            height: '100%', borderRadius: 99, transition: 'width 0.4s ease',
+                                            width: `${reviewData.maxPossibleScore > 0 ? Math.round((reviewData.totalScore / reviewData.maxPossibleScore) * 100) : 0}%`,
+                                            background: 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+                                        }} />
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'rgba(139,92,246,0.8)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span>🤖</span> AI graded — review and override scores if needed.
+                                    </div>
+                                </div>
+
+                                {/* ── Question Cards ── */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 24 }}>
+                                    {reviewData.answers.map((ans, idx) => {
+                                        const isMCQ = ans.questionType === 'MCQ';
+                                        const isEditing = editingAnswerId === ans.answerId;
+                                        const isFeedbackOpen = !!expandedFeedback[ans.answerId];
+
+                                        return (
+                                            <div key={ans.answerId} style={{
+                                                background: 'rgba(255,255,255,0.04)',
+                                                border: `1px solid ${isMCQ ? 'rgba(99,102,241,0.2)' : 'rgba(139,92,246,0.25)'}`,
+                                                borderRadius: 12,
+                                                padding: '16px 18px',
+                                            }}>
+                                                {/* Card header */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                                    <div style={{ flex: 1, paddingRight: 12 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                            <span style={{
+                                                                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                                                                background: isMCQ ? 'rgba(99,102,241,0.15)' : 'rgba(139,92,246,0.15)',
+                                                                color: isMCQ ? '#818cf8' : '#a78bfa',
+                                                                border: `1px solid ${isMCQ ? 'rgba(99,102,241,0.3)' : 'rgba(139,92,246,0.3)'}`,
+                                                            }}>{isMCQ ? 'MCQ' : 'Subjective'}</span>
+                                                            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Q{idx + 1} · {ans.marks} mark{ans.marks !== 1 ? 's' : ''}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0', lineHeight: 1.5 }}>{ans.questionText}</div>
+                                                    </div>
+                                                    {/* Final score badge + edit */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, minWidth: 120 }}>
+                                                        {isMCQ ? (
+                                                            <span style={{
+                                                                fontSize: 13, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                                                                background: ans.isCorrect ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                                                                color: ans.isCorrect ? '#4ade80' : '#f87171',
+                                                                border: `1px solid ${ans.isCorrect ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                                            }}>{ans.isCorrect ? '✓ Correct' : '✗ Wrong'}</span>
+                                                        ) : (
+                                                            <>
+                                                                {!isEditing ? (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                        <span style={{
+                                                                            fontSize: 14, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                                                                            background: 'rgba(129,140,248,0.15)', color: '#818cf8',
+                                                                            border: '1px solid rgba(129,140,248,0.3)',
+                                                                        }}>
+                                                                            {ans.finalScore ?? '–'} / {ans.marks}
+                                                                            {ans.overriddenScore !== null && ans.overriddenScore !== undefined &&
+                                                                                <span style={{ fontSize: 10, marginLeft: 4, color: '#f59e0b' }}>✎</span>}
+                                                                        </span>
+                                                                        <button
+                                                                            style={{
+                                                                                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+                                                                                color: 'var(--text-secondary)', borderRadius: 6, padding: '4px 8px',
+                                                                                fontSize: 12, cursor: 'pointer',
+                                                                            }}
+                                                                            onClick={() => { setEditingAnswerId(ans.answerId); setEditScore(String(ans.finalScore ?? '')); }}
+                                                                        >Edit</button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                        <input
+                                                                            type="number" min="0" max={ans.marks}
+                                                                            value={editScore}
+                                                                            onChange={e => setEditScore(e.target.value)}
+                                                                            autoFocus
+                                                                            style={{
+                                                                                width: 60, background: 'rgba(255,255,255,0.08)',
+                                                                                border: '1px solid rgba(99,102,241,0.5)', borderRadius: 6,
+                                                                                color: '#fff', padding: '4px 8px', fontSize: 13, outline: 'none',
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            style={{ background: '#6366f1', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                                                                            onClick={() => handleOverrideScore(ans.answerId, ans.marks)}
+                                                                        >Save</button>
+                                                                        <button
+                                                                            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--text-secondary)', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}
+                                                                            onClick={() => setEditingAnswerId(null)}
+                                                                        >Cancel</button>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* MCQ answer */}
+                                                {isMCQ && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                        <div style={{
+                                                            padding: '8px 12px', borderRadius: 8, fontSize: 13,
+                                                            background: ans.isCorrect ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                                                            border: `1px solid ${ans.isCorrect ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                                                            color: ans.isCorrect ? '#4ade80' : '#f87171',
+                                                        }}>
+                                                            <span style={{ opacity: 0.7, marginRight: 6 }}>Selected:</span>
+                                                            {ans.selectedOptionText || <em style={{ opacity: 0.5 }}>No answer</em>}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Subjective answer */}
+                                                {!isMCQ && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        {/* Student answer */}
+                                                        <div style={{
+                                                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                                                            borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#e2e8f0',
+                                                            lineHeight: 1.6, whiteSpace: 'pre-wrap', minHeight: 40,
+                                                        }}>
+                                                            {ans.answerText || <em style={{ color: 'var(--text-secondary)' }}>No answer written</em>}
+                                                        </div>
+
+                                                        {/* AI suggested score */}
+                                                        {ans.aiSuggestedScore !== null && ans.aiSuggestedScore !== undefined && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                                <span style={{ color: 'var(--text-secondary)' }}>🤖 AI suggested:</span>
+                                                                <span style={{
+                                                                    fontWeight: 700, color: '#818cf8',
+                                                                    background: 'rgba(129,140,248,0.12)',
+                                                                    padding: '2px 8px', borderRadius: 6,
+                                                                    border: '1px solid rgba(129,140,248,0.25)',
+                                                                }}>{ans.aiSuggestedScore} / {ans.marks}</span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Collapsible AI feedback */}
+                                                        {ans.aiFeedback && (
+                                                            <div>
+                                                                <button
+                                                                    onClick={() => setExpandedFeedback(prev => ({ ...prev, [ans.answerId]: !prev[ans.answerId] }))}
+                                                                    style={{
+                                                                        background: 'none', border: 'none', cursor: 'pointer',
+                                                                        color: '#a78bfa', fontSize: 12, padding: 0, fontWeight: 500,
+                                                                        display: 'flex', alignItems: 'center', gap: 5,
+                                                                    }}
+                                                                >
+                                                                    <span style={{ fontSize: 10, display: 'inline-block', transform: isFeedbackOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+                                                                    Why this score? 💡
+                                                                </button>
+                                                                <div style={{
+                                                                    overflow: 'hidden',
+                                                                    maxHeight: isFeedbackOpen ? 300 : 0,
+                                                                    transition: 'max-height 0.3s ease',
+                                                                }}>
+                                                                    <div style={{
+                                                                        marginTop: 8, padding: '10px 14px',
+                                                                        background: 'rgba(167,139,250,0.06)',
+                                                                        border: '1px solid rgba(167,139,250,0.18)',
+                                                                        borderRadius: 8, fontSize: 13, color: '#c4b5fd',
+                                                                        lineHeight: 1.6,
+                                                                    }}>
+                                                                        {ans.aiFeedback}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
@@ -586,8 +904,15 @@ const TeacherDashboard = () => {
 
                             <div className="ad-input-group" style={{ marginBottom: 16 }}>
                                 <label>Question Type</label>
-                                <select className="ad-select" disabled>
-                                    <option value="MCQ">MCQ (Multiple Choice) - Currently Supported</option>
+                                <select
+                                    className="ad-select"
+                                    value={aiGenQuestionType}
+                                    onChange={e => setAiGenQuestionType(e.target.value)}
+                                    disabled={aiGenLoading}
+                                >
+                                    <option value="MCQ">MCQ (Multiple Choice)</option>
+                                    <option value="SUBJECTIVE">Subjective (AI Graded)</option>
+                                    <option value="MIXED">Mixed (MCQ + Subjective)</option>
                                 </select>
                             </div>
 
