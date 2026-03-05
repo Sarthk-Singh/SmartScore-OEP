@@ -973,6 +973,90 @@ apiRouter.delete("/admin/user/:id", auth, requireRole("ADMIN"), async (req, res)
   }
 });
 
+// Admin resets a user's password to the default for their role
+apiRouter.patch("/admin/users/:id/reset-password", auth, requireRole("ADMIN"), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role === "ADMIN") return res.status(403).json({ error: "Cannot reset admin passwords" });
+
+    const defaultPassword = user.role === "TEACHER" ? "Welcome@123" : "Portal@123";
+    const hashed = await bcrypt.hash(defaultPassword, 10);
+
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashed, firstLogin: true }
+    });
+
+    // Send notification email (non-blocking)
+    transporter.sendMail({
+      from: `"SmartScore Portal" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "Your SmartScore Password Has Been Reset",
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#0f1117;color:#e4e6ef;padding:32px;border-radius:12px;">
+          <h2 style="color:#818cf8;margin:0 0 16px">Password Reset — SmartScore</h2>
+          <p style="margin:0 0 12px">Hi <strong>${user.name}</strong>,</p>
+          <p style="margin:0 0 12px">Your password has been reset by the administrator. Your new default password is:</p>
+          <div style="background:#1a1d2e;border:1px solid rgba(129,140,248,0.3);border-radius:8px;padding:14px 20px;font-size:20px;letter-spacing:2px;color:#818cf8;margin:0 0 16px;text-align:center;font-weight:700;">
+            ${defaultPassword}
+          </div>
+          <p style="margin:0 0 12px;color:#8b8fa3;font-size:14px;">You will be prompted to change this password the next time you log in.</p>
+          <p style="margin:0;color:#8b8fa3;font-size:13px;">If you did not expect this change, please contact your administrator immediately.</p>
+        </div>
+      `
+    }).catch(e => console.error("[Mailer] Reset password email failed:", e.message));
+
+    res.json({ message: "Password reset successfully. User has been notified via email." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin sets a custom password for a user
+apiRouter.patch("/admin/users/:id/set-password", auth, requireRole("ADMIN"), async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role === "ADMIN") return res.status(403).json({ error: "Cannot change admin passwords" });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashed, firstLogin: true }
+    });
+
+    // Send notification email (non-blocking)
+    transporter.sendMail({
+      from: `"SmartScore Portal" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "Your SmartScore Password Has Been Changed",
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#0f1117;color:#e4e6ef;padding:32px;border-radius:12px;">
+          <h2 style="color:#818cf8;margin:0 0 16px">Password Changed — SmartScore</h2>
+          <p style="margin:0 0 12px">Hi <strong>${user.name}</strong>,</p>
+          <p style="margin:0 0 12px">Your password has been changed by the administrator. Your new password is:</p>
+          <div style="background:#1a1d2e;border:1px solid rgba(129,140,248,0.3);border-radius:8px;padding:14px 20px;font-size:20px;letter-spacing:2px;color:#818cf8;margin:0 0 16px;text-align:center;font-weight:700;">
+            ${newPassword}
+          </div>
+          <p style="margin:0 0 12px;color:#8b8fa3;font-size:14px;">You will be prompted to change this password the next time you log in.</p>
+          <p style="margin:0;color:#8b8fa3;font-size:13px;">If you did not expect this change, please contact your administrator immediately.</p>
+        </div>
+      `
+    }).catch(e => console.error("[Mailer] Set password email failed:", e.message));
+
+    res.json({ message: "Password updated successfully. User has been notified via email." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Teacher views their assigned grades
 apiRouter.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, res) => {
   try {

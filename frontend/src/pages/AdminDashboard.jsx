@@ -177,6 +177,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
         }
     };
 
+
     const openBulkStudentUpload = () => {
         setBulkStudentFile(null);
         setBulkStudentResult(null);
@@ -470,6 +471,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                     </div>
                 </>
             )}
+
             {/* Bulk Student Upload Modal */}
             {showBulkStudentModal && (
                 <div className="ad-modal-overlay" onClick={() => setShowBulkStudentModal(false)}>

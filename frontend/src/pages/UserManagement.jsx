@@ -1,7 +1,71 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './AdminDashboard.css';
+
+// Small ⋯ action menu component
+const ActionMenu = ({ user, onReset, onSetPassword, onDelete }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    return (
+        <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8,
+                    color: '#e4e6ef',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    width: 32, height: 32,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background 0.15s',
+                }}
+                title="Actions"
+            >⋯</button>
+            {open && (
+                <div style={{
+                    position: 'absolute', right: 0, top: 36,
+                    background: '#1e2133',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 10,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                    zIndex: 200,
+                    minWidth: 180,
+                    overflow: 'hidden',
+                }}>
+                    <div
+                        onClick={() => { setOpen(false); onReset(user); }}
+                        style={{ padding: '10px 16px', fontSize: 13, color: '#facc15', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(234,179,8,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >🔄 Reset Password</div>
+                    <div
+                        onClick={() => { setOpen(false); onSetPassword(user); }}
+                        style={{ padding: '10px 16px', fontSize: 13, color: '#818cf8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >🔑 Custom Password</div>
+                    <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '2px 0' }} />
+                    <div
+                        onClick={() => { setOpen(false); onDelete(user); }}
+                        style={{ padding: '10px 16px', fontSize: 13, color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >🗑️ Delete User</div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const UserManagement = () => {
     const [activeTab, setActiveTab] = useState('teachers');
@@ -13,6 +77,12 @@ const UserManagement = () => {
     // Delete confirmation state
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
+
+    // Password management state
+    const [resetTarget, setResetTarget] = useState(null);       // { id, name, role }
+    const [customPwdTarget, setCustomPwdTarget] = useState(null); // { id, name }
+    const [customPwd, setCustomPwd] = useState('');
+    const [customPwdConfirm, setCustomPwdConfirm] = useState('');
 
     useEffect(() => {
         fetchUsers();
@@ -57,6 +127,31 @@ const UserManagement = () => {
             fetchUsers();
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to remove grade');
+        }
+    };
+
+    const handleResetPassword = async () => {
+        if (!resetTarget) return;
+        try {
+            const r = await api.patch(`/admin/users/${resetTarget.id}/reset-password`);
+            toast.success(r.data.message || 'Password reset successfully. User has been notified via email.');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to reset password');
+        } finally {
+            setResetTarget(null);
+        }
+    };
+
+    const handleSetCustomPassword = async (e) => {
+        e.preventDefault();
+        if (customPwd !== customPwdConfirm) { toast.error('Passwords do not match'); return; }
+        if (customPwd.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+        try {
+            const r = await api.patch(`/admin/users/${customPwdTarget.id}/set-password`, { newPassword: customPwd });
+            toast.success(r.data.message || 'Password updated successfully. User has been notified via email.');
+            setCustomPwdTarget(null); setCustomPwd(''); setCustomPwdConfirm('');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to set password');
         }
     };
 
@@ -137,7 +232,7 @@ const UserManagement = () => {
                                     <th>Name</th>
                                     <th>Email</th>
                                     <th>Assigned Grades</th>
-                                    <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
+                                    <th style={{ width: 60, textAlign: 'center' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -157,10 +252,12 @@ const UserManagement = () => {
                                             }
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <button
-                                                className="ad-danger-btn ad-btn-sm"
-                                                onClick={() => setDeleteTarget({ ...t, role: 'TEACHER' })}
-                                            >🗑️</button>
+                                            <ActionMenu
+                                                user={{ ...t, role: 'TEACHER' }}
+                                                onReset={u => setResetTarget({ id: u.id, name: u.name, role: u.role })}
+                                                onSetPassword={u => { setCustomPwdTarget({ id: u.id, name: u.name }); setCustomPwd(''); setCustomPwdConfirm(''); }}
+                                                onDelete={u => setDeleteTarget(u)}
+                                            />
                                         </td>
                                     </tr>
                                 ))}
@@ -195,7 +292,7 @@ const UserManagement = () => {
                                         <th>Uni Roll No</th>
                                         <th>Grade</th>
                                         <th>Sem</th>
-                                        <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
+                                        <th style={{ width: 60, textAlign: 'center' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -213,10 +310,12 @@ const UserManagement = () => {
                                             </td>
                                             <td>{s.semester || '—'}</td>
                                             <td style={{ textAlign: 'center' }}>
-                                                <button
-                                                    className="ad-danger-btn ad-btn-sm"
-                                                    onClick={() => setDeleteTarget({ ...s, role: 'STUDENT' })}
-                                                >🗑️</button>
+                                                <ActionMenu
+                                                    user={{ ...s, role: 'STUDENT' }}
+                                                    onReset={u => setResetTarget({ id: u.id, name: u.name, role: u.role })}
+                                                    onSetPassword={u => { setCustomPwdTarget({ id: u.id, name: u.name }); setCustomPwd(''); setCustomPwdConfirm(''); }}
+                                                    onDelete={u => setDeleteTarget(u)}
+                                                />
                                             </td>
                                         </tr>
                                     ))}
@@ -284,6 +383,80 @@ const UserManagement = () => {
                                 style={{ opacity: deleting ? 0.5 : 1 }}
                             >{deleting ? 'Deleting...' : '🗑️ Delete Permanently'}</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reset Password Confirmation */}
+            {resetTarget && (
+                <div className="ad-modal-overlay" onClick={() => setResetTarget(null)}>
+                    <div className="ad-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                        <div className="ad-modal-title">
+                            <span>🔄 Reset Password</span>
+                            <button className="ad-modal-close" onClick={() => setResetTarget(null)}>✕</button>
+                        </div>
+                        <p style={{ fontSize: 14, color: 'var(--ad-text)', marginBottom: 8 }}>
+                            Reset password for <strong>{resetTarget.name}</strong>?
+                        </p>
+                        <p style={{ fontSize: 13, color: 'var(--ad-text-muted)', marginBottom: 24 }}>
+                            Their password will be reset to the default:{' '}
+                            <strong style={{ color: '#818cf8' }}>
+                                {resetTarget.role === 'TEACHER' ? 'Welcome@123' : 'Portal@123'}
+                            </strong>.{' '}
+                            They will be notified by email and prompted to change it on next login.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="ad-warning-btn" style={{ flex: 1 }} onClick={handleResetPassword}>Confirm Reset</button>
+                            <button className="ad-secondary-btn" style={{ flex: 1 }} onClick={() => setResetTarget(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Set Custom Password Modal */}
+            {customPwdTarget && (
+                <div className="ad-modal-overlay" onClick={() => setCustomPwdTarget(null)}>
+                    <div className="ad-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                        <div className="ad-modal-title">
+                            <span>🔑 Set Password</span>
+                            <button className="ad-modal-close" onClick={() => setCustomPwdTarget(null)}>✕</button>
+                        </div>
+                        <p style={{ fontSize: 14, color: 'var(--ad-text-muted)', marginBottom: 20 }}>
+                            Setting password for <strong style={{ color: '#fff' }}>{customPwdTarget.name}</strong>
+                        </p>
+                        <form onSubmit={handleSetCustomPassword}>
+                            <div className="ad-input-group" style={{ marginBottom: 14 }}>
+                                <label>New Password</label>
+                                <input
+                                    className="ad-input"
+                                    type="password"
+                                    required
+                                    minLength={6}
+                                    placeholder="Min. 6 characters"
+                                    value={customPwd}
+                                    onChange={e => setCustomPwd(e.target.value)}
+                                />
+                            </div>
+                            <div className="ad-input-group" style={{ marginBottom: 24 }}>
+                                <label>Confirm Password</label>
+                                <input
+                                    className="ad-input"
+                                    type="password"
+                                    required
+                                    placeholder="Re-enter password"
+                                    value={customPwdConfirm}
+                                    onChange={e => setCustomPwdConfirm(e.target.value)}
+                                    style={customPwdConfirm && customPwd !== customPwdConfirm ? { borderColor: 'rgba(239,68,68,0.6)' } : {}}
+                                />
+                                {customPwdConfirm && customPwd !== customPwdConfirm && (
+                                    <span style={{ fontSize: 12, color: '#f87171', marginTop: 2 }}>Passwords do not match</span>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button type="submit" className="ad-primary-btn" style={{ flex: 1 }}>Set Password</button>
+                                <button type="button" className="ad-secondary-btn" style={{ flex: 1 }} onClick={() => setCustomPwdTarget(null)}>Cancel</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
