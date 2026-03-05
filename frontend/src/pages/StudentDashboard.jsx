@@ -227,13 +227,16 @@ const StudentDashboard = () => {
         const firstDay = new Date(calYear, calMonth, 1).getDay();
         const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
         const today = new Date();
-        const examDays = new Set();
 
+        // Map day-of-month → [exam objects] for the visible month
+        const examsByDay = {};
         if (dashData?.upcomingExams) {
             dashData.upcomingExams.forEach(ex => {
                 const d = new Date(ex.scheduledDate);
                 if (d.getMonth() === calMonth && d.getFullYear() === calYear) {
-                    examDays.add(d.getDate());
+                    const day = d.getDate();
+                    if (!examsByDay[day]) examsByDay[day] = [];
+                    examsByDay[day].push({ ...ex, _date: d });
                 }
             });
         }
@@ -241,10 +244,12 @@ const StudentDashboard = () => {
         const cells = [];
         for (let i = 0; i < firstDay; i++) cells.push({ empty: true });
         for (let d = 1; d <= daysInMonth; d++) {
+            const exams = examsByDay[d] || [];
             cells.push({
                 day: d,
                 isToday: d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear(),
-                hasExam: examDays.has(d)
+                hasExam: exams.length > 0,
+                exams,
             });
         }
         return cells;
@@ -458,10 +463,11 @@ const StudentDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Subject Analysis + Calendar */}
-                        <div className="sd-content-grid">
-                            {/* Subject Analysis */}
-                            <div className="sd-section">
+                        {/* 2x2 Analytics Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }} className="sd-analytics-grid">
+
+                            {/* TOP LEFT — Subject-wise Analysis */}
+                            <div className="sd-section" style={{ margin: 0 }}>
                                 <div className="sd-section-header">
                                     <div className="sd-section-title">
                                         <span className="icon">📈</span> Subject-wise Analysis
@@ -495,11 +501,11 @@ const StudentDashboard = () => {
                                 )}
                             </div>
 
-                            {/* Calendar + Upcoming */}
-                            <div className="sd-section">
+                            {/* TOP RIGHT — Calendar */}
+                            <div className="sd-section" style={{ margin: 0 }}>
                                 <div className="sd-section-header">
                                     <div className="sd-section-title">
-                                        <span className="icon">📅</span> Exam Schedule
+                                        <span className="icon">📅</span> Exam Calendar
                                     </div>
                                 </div>
                                 <div className="sd-calendar-wrapper">
@@ -513,97 +519,127 @@ const StudentDashboard = () => {
                                             <div key={d} className="sd-calendar-day-label">{d}</div>
                                         ))}
                                         {calendarData.map((cell, i) => (
-                                            <div key={i} className={`sd-calendar-cell ${cell.empty ? 'empty' : ''} ${cell.isToday ? 'today' : ''} ${cell.hasExam ? 'has-exam' : ''}`}>
+                                            <div
+                                                key={i}
+                                                className={`sd-calendar-cell ${cell.empty ? 'empty' : ''} ${cell.isToday ? 'today' : ''} ${cell.hasExam ? 'has-exam' : ''}`}
+                                            >
                                                 {cell.day || ''}
+                                                {cell.hasExam && cell.exams.length > 0 && (
+                                                    <div className="sd-cal-tooltip">
+                                                        {cell.exams.map(ex => (
+                                                            <div key={ex.id} className="sd-cal-tooltip-item">
+                                                                <div className="sd-cal-tooltip-title">{ex.title}</div>
+                                                                <div className="sd-cal-tooltip-meta">
+                                                                    {ex.course?.name && <span>{ex.course.name}</span>}
+                                                                    {ex.course?.name && <span className="sd-cal-tooltip-dot">·</span>}
+                                                                    <span>⏱ {ex.durationMinutes} min</span>
+                                                                    {ex._date && (
+                                                                        <><span className="sd-cal-tooltip-dot">·</span>
+                                                                            <span>{ex._date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
+                                </div>
+                            </div>
 
-                                    {upcomingExams.length > 0 ? (
-                                        <div className="sd-upcoming-list">
-                                            <h4 style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: '4px 0 8px' }}>Upcoming Exams</h4>
-                                            {upcomingExams.slice(0, 4).map(ex => {
-                                                const d = new Date(ex.scheduledDate);
-                                                return (
-                                                    <div key={ex.id} className="sd-upcoming-item">
-                                                        <div className="sd-upcoming-date">
-                                                            <div className="day">{d.getDate()}</div>
-                                                            <div className="month">{monthNames[d.getMonth()].slice(0, 3)}</div>
-                                                        </div>
-                                                        <div className="sd-upcoming-info">
-                                                            <div className="sd-upcoming-title">{ex.title}</div>
-                                                            <div className="sd-upcoming-meta">{ex.course?.name} • {ex.grade?.name}</div>
-                                                        </div>
-                                                        <div className="sd-upcoming-duration" style={{ textAlign: 'right', fontSize: '13px' }}>
-                                                            <div style={{ fontWeight: '500' }}>⏱ {ex.durationMinutes} min</div>
-                                                            <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>📋 {ex._count?.questions || 0} Qs</div>
-                                                        </div>
+                            {/* BOTTOM LEFT — Recent Results */}
+                            <div className="sd-section" style={{ margin: 0 }}>
+                                <div className="sd-section-header">
+                                    <div className="sd-section-title">
+                                        <span className="icon">📋</span> Recent Results
+                                    </div>
+                                </div>
+                                {recentResults.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        {recentResults.map(r => (
+                                            <div key={r.examId} className="sd-result-card">
+                                                <div className="sd-result-top">
+                                                    <div>
+                                                        <div className="sd-result-title">{r.examTitle}</div>
+                                                        <div className="sd-result-course">{r.courseName}</div>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="sd-empty">
-                                            <div className="sd-empty-icon">🎉</div>
-                                            <p>No upcoming exams scheduled!</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Recent Results */}
-                        <div className="sd-section">
-                            <div className="sd-section-header">
-                                <div className="sd-section-title">
-                                    <span className="icon">📋</span> Recent Results
-                                </div>
-                            </div>
-                            {recentResults.length > 0 ? (
-                                <div className="sd-results-grid">
-                                    {recentResults.map(r => (
-                                        <div key={r.examId} className="sd-result-card">
-                                            <div className="sd-result-top">
-                                                <div>
-                                                    <div className="sd-result-title">{r.examTitle}</div>
-                                                    <div className="sd-result-course">{r.courseName}</div>
+                                                    {r.resultsReleased ? (
+                                                        <div className={`sd-result-percent ${getColorClass(r.percentage)}`}>
+                                                            {r.percentage}%
+                                                        </div>
+                                                    ) : (
+                                                        <div className="sd-result-percent" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '4px 8px' }}>
+                                                            Pending
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {r.resultsReleased ? (
-                                                    <div className={`sd-result-percent ${getColorClass(r.percentage)}`}>
-                                                        {r.percentage}%
-                                                    </div>
-                                                ) : (
-                                                    <div className="sd-result-percent" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '4px 8px' }}>
-                                                        Pending
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="sd-result-bottom">
-                                                {r.resultsReleased ? (
-                                                    <>
-                                                        <span className="sd-result-score">
-                                                            Score: <strong>{r.totalScore}</strong> / {r.totalMarks}
+                                                <div className="sd-result-bottom">
+                                                    {r.resultsReleased ? (
+                                                        <>
+                                                            <span className="sd-result-score">
+                                                                Score: <strong>{r.totalScore}</strong> / {r.totalMarks}
+                                                            </span>
+                                                            <button className="sd-view-btn" onClick={() => handleViewResult(r.examId)}>
+                                                                View Details
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <span className="sd-result-score" style={{ color: 'var(--text-secondary)' }}>
+                                                            Result Pending
                                                         </span>
-                                                        <button className="sd-view-btn" onClick={() => handleViewResult(r.examId)}>
-                                                            View Details
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <span className="sd-result-score" style={{ color: 'var(--text-secondary)' }}>
-                                                        Result Pending
-                                                    </span>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="sd-empty">
+                                        <div className="sd-empty-icon">📋</div>
+                                        <p>No results released yet.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* BOTTOM RIGHT — Upcoming Exams */}
+                            <div className="sd-section" style={{ margin: 0 }}>
+                                <div className="sd-section-header">
+                                    <div className="sd-section-title">
+                                        <span className="icon">🗓</span> Upcoming Exams
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="sd-empty">
-                                    <div className="sd-empty-icon">📋</div>
-                                    <p>No results released yet.</p>
-                                </div>
-                            )}
+                                {upcomingExams.length > 0 ? (
+                                    <div className="sd-upcoming-list">
+                                        {upcomingExams.slice(0, 4).map(ex => {
+                                            const d = new Date(ex.scheduledDate);
+                                            return (
+                                                <div key={ex.id} className="sd-upcoming-item">
+                                                    <div className="sd-upcoming-date">
+                                                        <div className="day">{d.getDate()}</div>
+                                                        <div className="month">{monthNames[d.getMonth()].slice(0, 3)}</div>
+                                                    </div>
+                                                    <div className="sd-upcoming-info">
+                                                        <div className="sd-upcoming-title">{ex.title}</div>
+                                                        <div className="sd-upcoming-meta">{ex.course?.name} • {ex.grade?.name}</div>
+                                                    </div>
+                                                    <div className="sd-upcoming-duration" style={{ textAlign: 'right', fontSize: '13px' }}>
+                                                        <div style={{ fontWeight: '500' }}>⏱ {ex.durationMinutes} min</div>
+                                                        <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>📋 {ex._count?.questions || 0} Qs</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="sd-empty">
+                                        <div className="sd-empty-icon">🎉</div>
+                                        <p>No upcoming exams scheduled!</p>
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
+
                     </>
                 )}
 
