@@ -32,6 +32,11 @@ const StudentDashboard = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isFullscreenReady, setIsFullscreenReady] = useState(false);
 
+    // Exam attempt UI state
+    const [currentQuestion, setCurrentQuestion] = useState(0);
+    const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
+    const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
     // Calendar month navigation
     const [calMonth, setCalMonth] = useState(new Date().getMonth());
     const [calYear, setCalYear] = useState(new Date().getFullYear());
@@ -87,6 +92,8 @@ const StudentDashboard = () => {
             setAnswers({});
             setSubmissionResult(null);
             setShowPasswordModal(false);
+            setCurrentQuestion(0);
+            setFlaggedQuestions(new Set());
 
             // Do not start timer yet — wait for Fullscreen Modal
             setIsFullscreenReady(true);
@@ -140,6 +147,9 @@ const StudentDashboard = () => {
             setActiveExam(null);
             setTimeLeft(null); // Clear timer
             setIsFullscreenReady(false);
+            setCurrentQuestion(0);
+            setFlaggedQuestions(new Set());
+            setShowSubmitConfirm(false);
             fetchDashboard(); // refresh analytics
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to submit exam');
@@ -304,91 +314,202 @@ const StudentDashboard = () => {
             );
         }
 
-        return (
-            <div className="sd-wrapper" style={{ minHeight: '100vh', background: 'var(--sd-bg)', color: 'var(--sd-text)' }}>
-                {/* Fullscreen doesn't render sidebar well often, but we keep it relative */}
-                <div className="sd-main" style={{ marginLeft: 0, width: '100%', padding: '40px' }}>
-                    <div className="sd-exam-view">
-                        <div className="sd-exam-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h2>{activeExam.title}</h2>
-                            <div className={`sd-timer ${timeLeft <= 60 ? 'danger' : ''}`} style={{
-                                background: timeLeft <= 60 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.2)',
-                                color: timeLeft <= 60 ? '#ef4444' : '#8b5cf6',
-                                padding: '8px 16px',
-                                borderRadius: '8px',
-                                fontWeight: 'bold',
-                                fontSize: '1.2rem',
-                                border: `1px solid ${timeLeft <= 60 ? '#ef4444' : '#8b5cf6'}`
-                            }}>
-                                ⏱ {formatTime(timeLeft)}
-                            </div>
-                        </div>
-                        {activeExam.questions.map((q, idx) => (
-                            <div key={q.id} className="sd-question-card">
-                                <div className="sd-question-text">
-                                    <span className="sd-question-num">{idx + 1}.</span>
-                                    <span>{q.questionText} <span className="sd-question-marks">({q.marks} marks)</span></span>
-                                </div>
+        // ─── Stitch Exam Attempt Interface ───────────────────────────────
+        const questions = activeExam.questions;
+        const totalQ = questions.length;
+        const q = questions[currentQuestion];
+        const isTimerWarning = timeLeft !== null && timeLeft <= 300;
+        const isTimerDanger = timeLeft !== null && timeLeft <= 60;
 
-                                {q.type === 'MCQ' ? (
-                                    <div className="sd-options-list">
-                                        {q.options.map(opt => (
-                                            <div
-                                                key={opt.id}
-                                                className={`sd-option-item ${answers[q.id]?.selectedOptionId === opt.id ? 'selected' : ''}`}
-                                                onClick={() => handleOptionSelect(q.id, opt.id)}
-                                            >
-                                                <div className="sd-option-radio"></div>
-                                                {opt.optionText}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div style={{ position: 'relative' }}>
-                                        <textarea
-                                            placeholder="Write your answer here..."
-                                            value={answers[q.id]?.answerText || ''}
-                                            onChange={e => handleAnswerText(q.id, e.target.value)}
-                                            rows={5}
-                                            style={{
-                                                width: '100%',
-                                                background: 'rgba(255,255,255,0.05)',
-                                                border: '1px solid rgba(255,255,255,0.12)',
-                                                borderRadius: 10,
-                                                color: 'var(--sd-text)',
-                                                padding: '12px 14px',
-                                                paddingBottom: '28px',
-                                                fontSize: 14,
-                                                lineHeight: 1.6,
-                                                resize: 'vertical',
-                                                outline: 'none',
-                                                boxSizing: 'border-box',
-                                                fontFamily: 'inherit',
-                                                transition: 'border-color 0.2s',
-                                            }}
-                                            onFocus={e => e.target.style.borderColor = 'rgba(139,92,246,0.5)'}
-                                            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
-                                        />
-                                        <span style={{
-                                            position: 'absolute',
-                                            bottom: 8,
-                                            right: 12,
-                                            fontSize: 11,
-                                            color: 'var(--sd-text-muted)',
-                                            pointerEvents: 'none',
-                                            userSelect: 'none',
-                                        }}>
-                                            {(answers[q.id]?.answerText || '').length} chars
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                        <button className="sd-submit-exam-btn" onClick={() => handleSubmitExam(false)}>
-                            Submit Exam
-                        </button>
+        // Stats for confirm dialog
+        const answeredCount = questions.filter(question => {
+            if (question.type === 'MCQ') return !!answers[question.id]?.selectedOptionId;
+            return !!(answers[question.id]?.answerText?.trim());
+        }).length;
+        const flaggedCount = flaggedQuestions.size;
+        const unansweredCount = totalQ - answeredCount;
+
+        const goToQuestion = (idx) => setCurrentQuestion(idx);
+
+        const handleToggleFlag = () => {
+            setFlaggedQuestions(prev => {
+                const next = new Set(prev);
+                if (next.has(q.id)) next.delete(q.id);
+                else next.add(q.id);
+                return next;
+            });
+        };
+
+        const getQNavClass = (idx) => {
+            const qId = questions[idx].id;
+            const isAnswered = questions[idx].type === 'MCQ'
+                ? !!answers[qId]?.selectedOptionId
+                : !!(answers[qId]?.answerText?.trim());
+            if (idx === currentQuestion) return 'ea-qnav-btn current';
+            if (flaggedQuestions.has(qId)) return 'ea-qnav-btn flagged';
+            if (isAnswered) return 'ea-qnav-btn answered';
+            return 'ea-qnav-btn';
+        };
+
+        return (
+            <div className="ea-wrapper">
+                {/* ── Top Bar ── */}
+                <div className="ea-topbar">
+                    <div className="ea-topbar-left">
+                        <div className="ea-logo"><span>SS</span> SmartScore</div>
+                    </div>
+                    <div className="ea-topbar-center">
+                        {activeExam.course?.name && <span className="ea-course-name">{activeExam.course.name}</span>}
+                        <span className="ea-exam-title">{activeExam.title}</span>
+                    </div>
+                    <div className="ea-topbar-right">
+                        <div className={`ea-timer${isTimerWarning ? (isTimerDanger ? ' danger' : ' warning') : ''}`}>
+                            <span className="ea-timer-icon">⏱</span>
+                            {formatTime(timeLeft)}
+                        </div>
+                        <div className="ea-avatar">{(user?.name || 'S')[0].toUpperCase()}</div>
                     </div>
                 </div>
+
+                {/* ── Body ── */}
+                <div className="ea-body">
+                    {/* Left: Question Navigator */}
+                    <div className="ea-sidebar">
+                        <div className="ea-sidebar-header">
+                            <span className="ea-sidebar-title">QUESTION NAVIGATOR</span>
+                            <span className="ea-sidebar-count">{currentQuestion + 1}/{totalQ}</span>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="ea-legend">
+                            <div className="ea-legend-item"><span className="ea-legend-dot answered"></span>Answered</div>
+                            <div className="ea-legend-item"><span className="ea-legend-dot current"></span>Current</div>
+                            <div className="ea-legend-item"><span className="ea-legend-dot flagged"></span>Flagged</div>
+                            <div className="ea-legend-item"><span className="ea-legend-dot pending"></span>Pending</div>
+                        </div>
+
+                        {/* Grid of question numbers */}
+                        <div className="ea-qnav-grid">
+                            {questions.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    className={getQNavClass(idx)}
+                                    onClick={() => goToQuestion(idx)}
+                                >
+                                    {idx + 1}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Right: Question Panel */}
+                    <div className="ea-main">
+                        <div className="ea-question-label">QUESTION {currentQuestion + 1} OF {totalQ}</div>
+
+                        <div className="ea-question-card">
+                            <div className="ea-question-text">
+                                {q.questionText}
+                                <span className="ea-question-marks"> ({q.marks} mark{q.marks !== 1 ? 's' : ''})</span>
+                            </div>
+
+                            {q.type === 'MCQ' ? (
+                                <div className="ea-options-list">
+                                    {q.options.map(opt => (
+                                        <label
+                                            key={opt.id}
+                                            className={`ea-mcq-option${answers[q.id]?.selectedOptionId === opt.id ? ' selected' : ''}`}
+                                            onClick={() => handleOptionSelect(q.id, opt.id)}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name={`q-${q.id}`}
+                                                checked={answers[q.id]?.selectedOptionId === opt.id}
+                                                onChange={() => handleOptionSelect(q.id, opt.id)}
+                                                className="ea-radio"
+                                            />
+                                            <span className="ea-radio-custom"></span>
+                                            <span className="ea-option-text">{opt.optionText}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="ea-textarea-wrap">
+                                    <textarea
+                                        className="ea-textarea"
+                                        placeholder="Write your answer here..."
+                                        value={answers[q.id]?.answerText || ''}
+                                        onChange={e => handleAnswerText(q.id, e.target.value)}
+                                        rows={8}
+                                    />
+                                    <span className="ea-char-count">
+                                        {(answers[q.id]?.answerText || '').length} chars
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Bottom Bar ── */}
+                <div className="ea-bottombar">
+                    <button
+                        className="ea-btn ea-btn-prev"
+                        onClick={() => setCurrentQuestion(i => Math.max(0, i - 1))}
+                        disabled={currentQuestion === 0}
+                    >
+                        ← Previous
+                    </button>
+
+                    <button
+                        className={`ea-btn ea-btn-flag${flaggedQuestions.has(q.id) ? ' flagged' : ''}`}
+                        onClick={handleToggleFlag}
+                    >
+                        🚩 {flaggedQuestions.has(q.id) ? 'Unflag' : 'Flag for Review'}
+                    </button>
+
+                    <button
+                        className="ea-btn ea-btn-next"
+                        onClick={() => setCurrentQuestion(i => Math.min(totalQ - 1, i + 1))}
+                        disabled={currentQuestion === totalQ - 1}
+                    >
+                        Save &amp; Next →
+                    </button>
+
+                    <button
+                        className="ea-btn ea-btn-submit"
+                        onClick={() => setShowSubmitConfirm(true)}
+                    >
+                        Submit Exam
+                    </button>
+                </div>
+
+                {/* ── Submit Confirm Dialog ── */}
+                {showSubmitConfirm && (
+                    <div className="ea-confirm-overlay" onClick={() => setShowSubmitConfirm(false)}>
+                        <div className="ea-confirm-dialog" onClick={e => e.stopPropagation()}>
+                            <div className="ea-confirm-title">Submit Exam?</div>
+                            <p className="ea-confirm-subtitle">Are you sure you want to submit? You cannot change your answers after submission.</p>
+                            <div className="ea-confirm-stats">
+                                <div className="ea-confirm-stat answered">
+                                    <span className="ea-confirm-stat-val">{answeredCount}</span>
+                                    <span className="ea-confirm-stat-label">Answered</span>
+                                </div>
+                                <div className="ea-confirm-stat flagged">
+                                    <span className="ea-confirm-stat-val">{flaggedCount}</span>
+                                    <span className="ea-confirm-stat-label">Flagged</span>
+                                </div>
+                                <div className="ea-confirm-stat unanswered">
+                                    <span className="ea-confirm-stat-val">{unansweredCount}</span>
+                                    <span className="ea-confirm-stat-label">Unanswered</span>
+                                </div>
+                            </div>
+                            <div className="ea-confirm-actions">
+                                <button className="ea-confirm-cancel" onClick={() => setShowSubmitConfirm(false)}>Cancel</button>
+                                <button className="ea-confirm-ok" onClick={() => { setShowSubmitConfirm(false); handleSubmitExam(false); }}>Submit Exam</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
