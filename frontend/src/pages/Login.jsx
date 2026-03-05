@@ -110,8 +110,8 @@ const Login = () => {
                 <div className="login-shape login-shape-4"></div>
 
                 <div className="login-brand-content">
-                    <div className="login-logo">SS</div>
-                    <h1 className="login-brand-title">SmartScore</h1>
+                    <img src="/images/icon.png" alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
+                    <h1 className="login-brand-title">Smart<span style={{ color: '#818cf8' }}>Score</span></h1>
                     <p className="login-brand-tagline">Smart Exam Management Portal</p>
 
                     <div className="login-features">
@@ -197,7 +197,7 @@ const Login = () => {
                     </form>
 
                     <div className="login-footer">
-                        Powered by SmartScore
+                        Powered by Smart<span style={{ color: '#818cf8' }}>Score</span>
                     </div>
                 </div>
             </div>

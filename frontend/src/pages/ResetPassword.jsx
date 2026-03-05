@@ -44,8 +44,8 @@ const ResetPassword = () => {
                 <div className="login-shape login-shape-3"></div>
                 <div className="login-shape login-shape-4"></div>
                 <div className="login-brand-content">
-                    <div className="login-logo">SS</div>
-                    <h1 className="login-brand-title">SmartScore</h1>
+                    <img src="/images/icon.png" alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
+                    <h1 className="login-brand-title">Smart<span style={{ color: '#818cf8' }}>Score</span></h1>
                     <p className="login-brand-tagline">Set a new secure password</p>
                 </div>
             </div>
