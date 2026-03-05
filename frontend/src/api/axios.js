@@ -10,7 +10,7 @@ const api = axios.create({
 // Add a request interceptor to include the JWT token in headers
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
             // Note: Backend middleware expects just the token or "Bearer token"?

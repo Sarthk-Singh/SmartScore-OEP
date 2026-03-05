@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const verifyToken = async () => {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             if (token) {
                 try {
                     const decoded = jwtDecode(token);
@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await api.post('/login', { email, password });
             const { token, firstLogin } = response.data;
-            localStorage.setItem('token', token);
+            sessionStorage.setItem('token', token);
             const decoded = jwtDecode(token);
             setUser(decoded);
             return { ...decoded, token, firstLogin };
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
         setUser(null);
     };
 

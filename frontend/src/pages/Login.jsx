@@ -79,7 +79,7 @@ const Login = () => {
             const response = await api.post('/auth/google', { idToken: credential });
 
             const { token } = response.data;
-            localStorage.setItem('token', token);
+            sessionStorage.setItem('token', token);
 
             // Decode to find role and redirect
             const decoded = jwtDecode(token);
