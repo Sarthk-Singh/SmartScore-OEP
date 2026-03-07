@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
@@ -65,15 +65,23 @@ const TeacherDashboard = () => {
     // Sidebar
     const [activeTab, setActiveTab] = useState('exams');
 
+    // Exams tab state
+    const [examsCourseFilter, setExamsCourseFilter] = useState('');
+    const [examsStatusFilter, setExamsStatusFilter] = useState('');
+    const [examsSort, setExamsSort] = useState('date-newest');
+
     // Teachers tab state
     const [teachers, setTeachers] = useState([]);
     const [teachersLoaded, setTeachersLoaded] = useState(false);
     const [expandedTeacherId, setExpandedTeacherId] = useState(null);
+    const [teachersSort, setTeachersSort] = useState('name-az');
 
     // Students tab state
     const [students, setStudents] = useState([]);
     const [studentsLoaded, setStudentsLoaded] = useState(false);
     const [studentsSearch, setStudentsSearch] = useState('');
+    const [studentsSemesterFilter, setStudentsSemesterFilter] = useState('');
+    const [studentsSort, setStudentsSort] = useState('name-az');
     const [activityStudent, setActivityStudent] = useState(null);
     const [studentActivity, setStudentActivity] = useState(null);
     const [activityLoading, setActivityLoading] = useState(false);
@@ -119,6 +127,84 @@ const TeacherDashboard = () => {
         if (activeTab === 'teachers' && !teachersLoaded) fetchMyTeachers();
         if (activeTab === 'students' && !studentsLoaded) fetchMyStudents();
     }, [activeTab]);
+
+    // --- Filtered and Sorted Lists ---
+
+    // Unique courses from all exams for the filter dropdown
+    const teacherExamCourses = useMemo(() => {
+        const unique = {};
+        exams.forEach(ex => {
+            if (ex.course) unique[ex.course.id] = ex.course.name;
+        });
+        return Object.entries(unique).map(([id, name]) => ({ id, name }));
+    }, [exams]);
+
+    const filteredExams = useMemo(() => {
+        let list = [...exams];
+        const now = new Date();
+
+        // Filter by Course
+        if (examsCourseFilter) {
+            list = list.filter(ex => ex.courseId === examsCourseFilter);
+        }
+
+        // Filter by Status
+        if (examsStatusFilter) {
+            list = list.filter(ex => {
+                const isUpcoming = new Date(ex.scheduledDate) > now;
+                const isReleased = ex.resultsReleased;
+                const isPast = new Date(ex.scheduledDate) <= now && !isReleased;
+
+                if (examsStatusFilter === 'upcoming') return isUpcoming;
+                if (examsStatusFilter === 'past') return isPast;
+                if (examsStatusFilter === 'released') return isReleased;
+                return true;
+            });
+        }
+
+        // Sort
+        if (examsSort === 'date-newest') list.sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate));
+        else if (examsSort === 'date-oldest') list.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+        else if (examsSort === 'title-az') list.sort((a, b) => a.title.localeCompare(b.title));
+        else if (examsSort === 'title-za') list.sort((a, b) => b.title.localeCompare(a.title));
+
+        return list;
+    }, [exams, examsCourseFilter, examsStatusFilter, examsSort]);
+
+    const filteredTeachers = useMemo(() => {
+        let list = [...teachers];
+        if (teachersSort === 'name-az') list.sort((a, b) => a.name.localeCompare(b.name));
+        else if (teachersSort === 'name-za') list.sort((a, b) => b.name.localeCompare(a.name));
+        return list;
+    }, [teachers, teachersSort]);
+
+    const filteredStudents = useMemo(() => {
+        let list = [...students];
+
+        // Search
+        if (studentsSearch.trim()) {
+            const q = studentsSearch.toLowerCase();
+            list = list.filter(s =>
+                (s.name || '').toLowerCase().includes(q) ||
+                (s.studentId || '').toLowerCase().includes(q) ||
+                (s.rollNumber || '').toLowerCase().includes(q) ||
+                (s.universityRollNumber || '').toLowerCase().includes(q) ||
+                (s.section || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Filter by Semester
+        if (studentsSemesterFilter) {
+            list = list.filter(s => String(s.semester) === studentsSemesterFilter);
+        }
+
+        // Sort
+        if (studentsSort === 'name-az') list.sort((a, b) => a.name.localeCompare(b.name));
+        else if (studentsSort === 'name-za') list.sort((a, b) => b.name.localeCompare(a.name));
+        else if (studentsSort === 'roll-asc') list.sort((a, b) => (a.rollNumber || '').localeCompare(b.rollNumber || ''));
+
+        return list;
+    }, [students, studentsSearch, studentsSemesterFilter, studentsSort]);
 
     const handleCreateExam = async (e) => {
         e.preventDefault();
@@ -376,40 +462,98 @@ const TeacherDashboard = () => {
 
                 {/* ===== EXAMS TAB ===== */}
                 {activeTab === 'exams' && (
-                    exams.length > 0 ? (
-                        <div className="ad-cards-grid">
-                            {exams.map(exam => (
-                                <div key={exam.id} className="ad-exam-card">
-                                    <div className="ad-exam-card-title">{exam.title}</div>
-                                    <div className="ad-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
-                                    <div className="ad-exam-card-info">
-                                        📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
-                                        ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
-                                    </div>
-                                    <div className="ad-btn-row" style={{ marginTop: 0 }}>
-                                        <button className="ad-primary-btn ad-btn-sm" style={{ backgroundColor: '#8b5cf6' }} onClick={() => openAIGenModal(exam)}>🤖 AI Gen</button>
-                                        <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
-                                        <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
-                                        <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
-                                        <button className="ad-warning-btn ad-btn-sm" onClick={() => openResults(exam)}>Results</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="ad-section">
-                            <div className="ad-empty">
-                                <div className="ad-empty-icon">📝</div>
-                                <p>No exams yet. Click "Create Exam" to get started!</p>
+                    <div className="ad-section">
+                        <div className="ad-section-header">
+                            <div className="ad-section-title"><span className="icon">📝</span> All Exams</div>
+                            <div className="filter-row">
+                                <select
+                                    className={`filter-select${examsCourseFilter ? ' active' : ''}`}
+                                    value={examsCourseFilter}
+                                    onChange={e => setExamsCourseFilter(e.target.value)}
+                                >
+                                    <option value="">All Courses</option>
+                                    {teacherExamCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${examsStatusFilter ? ' active' : ''}`}
+                                    value={examsStatusFilter}
+                                    onChange={e => setExamsStatusFilter(e.target.value)}
+                                >
+                                    <option value="">All Status</option>
+                                    <option value="upcoming">Upcoming</option>
+                                    <option value="past">Past</option>
+                                    <option value="released">Results Released</option>
+                                </select>
+                                <select
+                                    className={`filter-select${examsSort !== 'date-newest' ? ' active' : ''}`}
+                                    value={examsSort}
+                                    onChange={e => setExamsSort(e.target.value)}
+                                >
+                                    <option value="date-newest">Date (Newest)</option>
+                                    <option value="date-oldest">Date (Oldest)</option>
+                                    <option value="title-az">Title (A-Z)</option>
+                                    <option value="title-za">Title (Z-A)</option>
+                                </select>
+                                {(examsCourseFilter || examsStatusFilter || examsSort !== 'date-newest') && (
+                                    <button className="filter-clear" onClick={() => {
+                                        setExamsCourseFilter('');
+                                        setExamsStatusFilter('');
+                                        setExamsSort('date-newest');
+                                    }}>✕ Clear</button>
+                                )}
                             </div>
                         </div>
-                    )
+
+                        {filteredExams.length > 0 ? (
+                            <div className="ad-cards-grid">
+                                {filteredExams.map(exam => (
+                                    <div key={exam.id} className="ad-exam-card">
+                                        <div className="ad-exam-card-title">{exam.title}</div>
+                                        <div className="ad-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
+                                        <div className="ad-exam-card-info">
+                                            📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
+                                            ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
+                                        </div>
+                                        <div className="ad-btn-row" style={{ marginTop: 0 }}>
+                                            <button className="ad-primary-btn ad-btn-sm" style={{ backgroundColor: '#8b5cf6' }} onClick={() => openAIGenModal(exam)}>🤖 AI Gen</button>
+                                            <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
+                                            <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
+                                            <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
+                                            <button className="ad-warning-btn ad-btn-sm" onClick={() => openResults(exam)}>Results</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="ad-empty">
+                                <div className="ad-empty-icon">📝</div>
+                                <p>{exams.length > 0 ? 'No exams match your filters.' : 'No exams yet. Click "Create Exam" to get started!'}</p>
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 {/* ===== TEACHERS TAB ===== */}
                 {activeTab === 'teachers' && (
                     <div className="ad-section">
-                        {teachers.length === 0 ? (
+                        <div className="ad-section-header">
+                            <div className="ad-section-title"><span className="icon">👨‍🏫</span> All Teachers</div>
+                            <div className="filter-row">
+                                <select
+                                    className={`filter-select${teachersSort !== 'name-az' ? ' active' : ''}`}
+                                    value={teachersSort}
+                                    onChange={e => setTeachersSort(e.target.value)}
+                                >
+                                    <option value="name-az">Name A→Z</option>
+                                    <option value="name-za">Name Z→A</option>
+                                </select>
+                                {teachersSort !== 'name-az' && (
+                                    <button className="filter-clear" onClick={() => setTeachersSort('name-az')}>✕ Clear</button>
+                                )}
+                            </div>
+                        </div>
+
+                        {filteredTeachers.length === 0 ? (
                             <div className="ad-empty">
                                 <div className="ad-empty-icon">👨‍🏫</div>
                                 <p>No other teachers are assigned to your grades yet.</p>
@@ -425,7 +569,7 @@ const TeacherDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {teachers.map(t => (
+                                    {filteredTeachers.map(t => (
                                         <>
                                             <tr key={t.id}>
                                                 <td style={{ color: '#fff', fontWeight: 500 }}>{t.name}</td>
@@ -501,35 +645,53 @@ const TeacherDashboard = () => {
                 {/* ===== STUDENTS TAB ===== */}
                 {activeTab === 'students' && (
                     <div className="ad-section">
-                        {/* Search bar */}
-                        <div style={{ marginBottom: 18 }}>
-                            <input
-                                className="ad-input"
-                                placeholder="🔍 Search by name, roll number, or university roll no."
-                                value={studentsSearch}
-                                onChange={e => setStudentsSearch(e.target.value)}
-                                style={{ maxWidth: 420 }}
-                            />
+                        <div className="ad-section-header">
+                            <div className="ad-section-title"><span className="icon">🎓</span> All Students</div>
+                            <div className="filter-row">
+                                <div style={{ position: 'relative', marginRight: 8 }}>
+                                    <input
+                                        className="ad-input"
+                                        placeholder="🔍 Search name, roll..."
+                                        value={studentsSearch}
+                                        onChange={e => setStudentsSearch(e.target.value)}
+                                        style={{ maxWidth: 200, paddingLeft: 32, height: 32, fontSize: 13 }}
+                                    />
+                                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13 }}></span>
+                                </div>
+                                <select
+                                    className={`filter-select${studentsSemesterFilter ? ' active' : ''}`}
+                                    value={studentsSemesterFilter}
+                                    onChange={e => setStudentsSemesterFilter(e.target.value)}
+                                >
+                                    <option value="">All Semesters</option>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>Sem {s}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${studentsSort !== 'name-az' ? ' active' : ''}`}
+                                    value={studentsSort}
+                                    onChange={e => setStudentsSort(e.target.value)}
+                                >
+                                    <option value="name-az">Name A→Z</option>
+                                    <option value="name-za">Name Z→A</option>
+                                    <option value="roll-asc">Roll Number</option>
+                                </select>
+                                {(studentsSearch || studentsSemesterFilter || studentsSort !== 'name-az') && (
+                                    <button className="filter-clear" onClick={() => {
+                                        setStudentsSearch('');
+                                        setStudentsSemesterFilter('');
+                                        setStudentsSort('name-az');
+                                    }}>✕ Clear</button>
+                                )}
+                            </div>
                         </div>
 
-                        {(() => {
-                            const q = studentsSearch.toLowerCase().trim();
-                            const filtered = q
-                                ? students.filter(s =>
-                                    s.name.toLowerCase().includes(q) ||
-                                    (s.studentId || '').toLowerCase().includes(q) ||
-                                    (s.rollNumber || '').toLowerCase().includes(q) ||
-                                    (s.universityRollNumber || '').toLowerCase().includes(q) ||
-                                    (s.section || '').toLowerCase().includes(q)
-                                )
-                                : students;
-
-                            return filtered.length === 0 ? (
-                                <div className="ad-empty">
-                                    <div className="ad-empty-icon">🎓</div>
-                                    <p>{q ? 'No students match your search.' : 'No students are enrolled in your grades yet.'}</p>
-                                </div>
-                            ) : (
+                        {filteredStudents.length === 0 ? (
+                            <div className="ad-empty">
+                                <div className="ad-empty-icon">🎓</div>
+                                <p>{(studentsSearch || studentsSemesterFilter) ? 'No students match your criteria.' : 'No students are enrolled in your grades yet.'}</p>
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
                                 <table className="ad-table">
                                     <thead>
                                         <tr>
@@ -545,7 +707,7 @@ const TeacherDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filtered.map(s => (
+                                        {filteredStudents.map(s => (
                                             <tr key={s.id}>
                                                 <td style={{ color: 'var(--text-secondary)' }}>{s.studentId || '—'}</td>
                                                 <td style={{ color: 'var(--text-secondary)' }}>{s.universityRollNumber || '—'}</td>
@@ -565,8 +727,8 @@ const TeacherDashboard = () => {
                                         ))}
                                     </tbody>
                                 </table>
-                            );
-                        })()}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

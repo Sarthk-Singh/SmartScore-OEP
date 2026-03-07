@@ -74,6 +74,15 @@ const UserManagement = () => {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
+    // Student filters
+    const [stuFilterGrade, setStuFilterGrade] = useState('');
+    const [stuFilterSemester, setStuFilterSemester] = useState('');
+    const [stuSort, setStuSort] = useState('recently-added');
+
+    // Teacher filters
+    const [tchFilterGrade, setTchFilterGrade] = useState('');
+    const [tchSort, setTchSort] = useState('name-az');
+
     // Delete confirmation state
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -155,27 +164,51 @@ const UserManagement = () => {
         }
     };
 
+    // Derived grade list from fetched data (for filter dropdowns)
+    const allGrades = useMemo(() => {
+        const set = new Set();
+        [...teachers, ...students].forEach(u => u.teachingGrades?.forEach(g => set.add(g.name)));
+        students.forEach(s => s.grade?.name && set.add(s.grade.name));
+        return [...set].sort();
+    }, [teachers, students]);
+
     const filteredTeachers = useMemo(() => {
-        if (!search.trim()) return teachers;
-        const q = search.toLowerCase();
-        return teachers.filter(t =>
-            t.name.toLowerCase().includes(q) ||
-            t.email.toLowerCase().includes(q)
-        );
-    }, [teachers, search]);
+        let list = teachers;
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            list = list.filter(t =>
+                (t.name || '').toLowerCase().includes(q) ||
+                (t.email || '').toLowerCase().includes(q)
+            );
+        }
+        if (tchFilterGrade) list = list.filter(t => t.teachingGrades?.some(g => g.name === tchFilterGrade));
+        if (tchSort === 'name-az') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+        else if (tchSort === 'name-za') list = [...list].sort((a, b) => b.name.localeCompare(a.name));
+        // 'recently-added' keeps original DB order (desc by createdAt)
+        return list;
+    }, [teachers, search, tchFilterGrade, tchSort]);
 
     const filteredStudents = useMemo(() => {
-        if (!search.trim()) return students;
-        const q = search.toLowerCase();
-        return students.filter(s =>
-            s.name.toLowerCase().includes(q) ||
-            s.email.toLowerCase().includes(q) ||
-            (s.studentId && s.studentId.toLowerCase().includes(q)) ||
-            (s.universityRollNumber && s.universityRollNumber.toLowerCase().includes(q)) ||
-            (s.section && s.section.toLowerCase().includes(q)) ||
-            (s.grade?.name && s.grade.name.toLowerCase().includes(q))
-        );
-    }, [students, search]);
+        let list = students;
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            list = list.filter(s =>
+                (s.name || '').toLowerCase().includes(q) ||
+                (s.email || '').toLowerCase().includes(q) ||
+                (s.studentId && s.studentId.toLowerCase().includes(q)) ||
+                (s.universityRollNumber && s.universityRollNumber.toLowerCase().includes(q)) ||
+                (s.section && s.section.toLowerCase().includes(q)) ||
+                (s.grade?.name && s.grade.name.toLowerCase().includes(q))
+            );
+        }
+        if (stuFilterGrade) list = list.filter(s => s.grade?.name === stuFilterGrade);
+        if (stuFilterSemester) list = list.filter(s => String(s.semester) === stuFilterSemester);
+        if (stuSort === 'name-az') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+        else if (stuSort === 'name-za') list = [...list].sort((a, b) => b.name.localeCompare(a.name));
+        else if (stuSort === 'roll-asc') list = [...list].sort((a, b) => (a.studentId || '').localeCompare(b.studentId || ''));
+        // 'recently-added' keeps original DB order (desc by createdAt)
+        return list;
+    }, [students, search, stuFilterGrade, stuFilterSemester, stuSort]);
 
     if (loading) {
         return (
@@ -193,13 +226,13 @@ const UserManagement = () => {
                 <div style={{ display: 'flex', gap: 8 }}>
                     <button
                         className={activeTab === 'teachers' ? 'ad-primary-btn' : 'ad-secondary-btn'}
-                        onClick={() => { setActiveTab('teachers'); setSearch(''); }}
+                        onClick={() => { setActiveTab('teachers'); setSearch(''); setTchFilterGrade(''); setTchSort('name-az'); }}
                     >
                         👨‍🏫 Teachers ({teachers.length})
                     </button>
                     <button
                         className={activeTab === 'students' ? 'ad-primary-btn' : 'ad-secondary-btn'}
-                        onClick={() => { setActiveTab('students'); setSearch(''); }}
+                        onClick={() => { setActiveTab('students'); setSearch(''); setStuFilterGrade(''); setStuFilterSemester(''); setStuSort('recently-added'); }}
                     >
                         🎓 Students ({students.length})
                     </button>
@@ -222,9 +255,32 @@ const UserManagement = () => {
                 <div className="ad-section">
                     <div className="ad-section-header">
                         <div className="ad-section-title"><span className="icon">👨‍🏫</span> All Teachers</div>
-                        <span style={{ fontSize: 13, color: '#8b8fa3' }}>
-                            {filteredTeachers.length} of {teachers.length} shown
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, color: '#8b8fa3' }}>{filteredTeachers.length} of {teachers.length} shown</span>
+                            {/* Filter Row */}
+                            <div className="filter-row">
+                                <select
+                                    className={`filter-select${tchFilterGrade ? ' active' : ''}`}
+                                    value={tchFilterGrade}
+                                    onChange={e => setTchFilterGrade(e.target.value)}
+                                >
+                                    <option value="">All Grades</option>
+                                    {allGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${tchSort !== 'name-az' ? ' active' : ''}`}
+                                    value={tchSort}
+                                    onChange={e => setTchSort(e.target.value)}
+                                >
+                                    <option value="name-az">Name A→Z</option>
+                                    <option value="name-za">Name Z→A</option>
+                                    <option value="recently-added">Recently Added</option>
+                                </select>
+                                {(tchFilterGrade || tchSort !== 'name-az') && (
+                                    <button className="filter-clear" onClick={() => { setTchFilterGrade(''); setTchSort('name-az'); }}>✕ Clear</button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                     {filteredTeachers.length > 0 ? (
                         <table className="ad-table">
@@ -278,9 +334,41 @@ const UserManagement = () => {
                 <div className="ad-section">
                     <div className="ad-section-header">
                         <div className="ad-section-title"><span className="icon">🎓</span> All Students</div>
-                        <span style={{ fontSize: 13, color: '#8b8fa3' }}>
-                            {filteredStudents.length} of {students.length} shown
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, color: '#8b8fa3' }}>{filteredStudents.length} of {students.length} shown</span>
+                            {/* Filter Row */}
+                            <div className="filter-row">
+                                <select
+                                    className={`filter-select${stuFilterGrade ? ' active' : ''}`}
+                                    value={stuFilterGrade}
+                                    onChange={e => setStuFilterGrade(e.target.value)}
+                                >
+                                    <option value="">All Grades</option>
+                                    {allGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${stuFilterSemester ? ' active' : ''}`}
+                                    value={stuFilterSemester}
+                                    onChange={e => setStuFilterSemester(e.target.value)}
+                                >
+                                    <option value="">All Semesters</option>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>Sem {s}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${stuSort !== 'recently-added' ? ' active' : ''}`}
+                                    value={stuSort}
+                                    onChange={e => setStuSort(e.target.value)}
+                                >
+                                    <option value="recently-added">Recently Added</option>
+                                    <option value="name-az">Name A→Z</option>
+                                    <option value="name-za">Name Z→A</option>
+                                    <option value="roll-asc">Roll Number</option>
+                                </select>
+                                {(stuFilterGrade || stuFilterSemester || stuSort !== 'recently-added') && (
+                                    <button className="filter-clear" onClick={() => { setStuFilterGrade(''); setStuFilterSemester(''); setStuSort('recently-added'); }}>✕ Clear</button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                     {filteredStudents.length > 0 ? (
                         <div style={{ overflowX: 'auto' }}>

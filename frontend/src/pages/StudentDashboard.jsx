@@ -41,10 +41,85 @@ const StudentDashboard = () => {
     const [calMonth, setCalMonth] = useState(new Date().getMonth());
     const [calYear, setCalYear] = useState(new Date().getFullYear());
 
+    // Available Exams filter/sort
+    const [availCourseFilter, setAvailCourseFilter] = useState('');
+    const [availStatusFilter, setAvailStatusFilter] = useState('');
+    const [availSort, setAvailSort] = useState('date-newest');
+
+    // Recent Results filter/sort
+    const [resultsCourseFilter, setResultsCourseFilter] = useState('');
+    const [resultsSort, setResultsSort] = useState('date-newest');
+
     useEffect(() => {
         fetchDashboard();
         fetchExams();
     }, []);
+
+    // --- Filtered and Sorted Lists ---
+
+    // Unique courses from available exams
+    const availExamCourses = useMemo(() => {
+        const unique = {};
+        exams.forEach(ex => {
+            if (ex.course) unique[ex.course.id] = ex.course.name;
+        });
+        return Object.entries(unique).map(([id, name]) => ({ id, name }));
+    }, [exams]);
+
+    // Unique courses from recent results
+    const resultsCourses = useMemo(() => {
+        const unique = new Set();
+        dashData?.recentResults?.forEach(sub => {
+            if (sub.exam?.course?.name) unique.add(sub.exam.course.name);
+        });
+        return [...unique].sort();
+    }, [dashData]);
+
+    const filteredUpcomingExams = useMemo(() => {
+        let list = [...exams];
+        const now = new Date();
+
+        // Filter by Course
+        if (availCourseFilter) {
+            list = list.filter(ex => ex.courseId === availCourseFilter);
+        }
+
+        // Filter by Status
+        if (availStatusFilter) {
+            list = list.filter(ex => {
+                const isUpcoming = new Date(ex.scheduledDate) > now;
+                if (availStatusFilter === 'upcoming') return isUpcoming;
+                if (availStatusFilter === 'past') return !isUpcoming;
+                return true;
+            });
+        }
+
+        // Sort
+        if (availSort === 'date-newest') list.sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate));
+        else if (availSort === 'date-oldest') list.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+        else if (availSort === 'title-az') list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        else if (availSort === 'title-za') list.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+
+        return list;
+    }, [exams, availCourseFilter, availStatusFilter, availSort]);
+
+    const filteredResults = useMemo(() => {
+        if (!dashData?.recentResults) return [];
+        let list = [...dashData.recentResults];
+
+        // Filter by Course
+        if (resultsCourseFilter) {
+            list = list.filter(sub => sub.exam?.course?.name === resultsCourseFilter);
+        }
+
+        // Sort
+        if (resultsSort === 'date-newest') list.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+        else if (resultsSort === 'date-oldest') list.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+        else if (resultsSort === 'score-high') list.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+        else if (resultsSort === 'score-low') list.sort((a, b) => (a.totalScore || 0) - (b.totalScore || 0));
+
+        return list;
+    }, [dashData, resultsCourseFilter, resultsSort]);
 
     const fetchDashboard = async () => {
         try {
@@ -675,10 +750,35 @@ const StudentDashboard = () => {
                                     <div className="sd-section-title">
                                         <span className="icon">📋</span> Recent Results
                                     </div>
+                                    <div className="filter-row">
+                                        <select
+                                            className={`filter-select${resultsCourseFilter ? ' active' : ''}`}
+                                            value={resultsCourseFilter}
+                                            onChange={e => setResultsCourseFilter(e.target.value)}
+                                            style={{ minWidth: 120 }}
+                                        >
+                                            <option value="">All Courses</option>
+                                            {resultsCourses.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        <select
+                                            className={`filter-select${resultsSort !== 'date-newest' ? ' active' : ''}`}
+                                            value={resultsSort}
+                                            onChange={e => setResultsSort(e.target.value)}
+                                            style={{ minWidth: 130 }}
+                                        >
+                                            <option value="date-newest">Date (Newest)</option>
+                                            <option value="date-oldest">Date (Oldest)</option>
+                                            <option value="score-high">Score (High-Low)</option>
+                                            <option value="score-low">Score (Low-High)</option>
+                                        </select>
+                                        {(resultsCourseFilter || resultsSort !== 'date-newest') && (
+                                            <button className="filter-clear" onClick={() => { setResultsCourseFilter(''); setResultsSort('date-newest'); }}>✕</button>
+                                        )}
+                                    </div>
                                 </div>
-                                {recentResults.length > 0 ? (
+                                {filteredResults.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        {recentResults.map(r => (
+                                        {filteredResults.map(r => (
                                             <div key={r.examId} className="sd-result-card">
                                                 <div className="sd-result-top">
                                                     <div>
@@ -717,7 +817,7 @@ const StudentDashboard = () => {
                                 ) : (
                                     <div className="sd-empty">
                                         <div className="sd-empty-icon">📋</div>
-                                        <p>No results released yet.</p>
+                                        <p>{resultsCourseFilter ? 'No results match your filter.' : 'No results released yet.'}</p>
                                     </div>
                                 )}
                             </div>
@@ -765,19 +865,52 @@ const StudentDashboard = () => {
                 )}
 
                 {activeTab === 'exams' && (
-                    <>
-                        <div className="sd-header">
-                            <div className="sd-header-left">
-                                <h1>Available Exams</h1>
-                                <p>Take exams assigned to your grade</p>
+                    <div className="sd-section" style={{ padding: 24 }}>
+                        <div className="sd-section-header" style={{ marginBottom: 20 }}>
+                            <div className="sd-section-title">
+                                <span className="icon">📝</span> All Available Exams
                             </div>
-                            <div className="sd-header-right">
-                                <button className="sd-logout-btn" onClick={logout}>Logout</button>
+                            <div className="filter-row">
+                                <select
+                                    className={`filter-select${availCourseFilter ? ' active' : ''}`}
+                                    value={availCourseFilter}
+                                    onChange={e => setAvailCourseFilter(e.target.value)}
+                                >
+                                    <option value="">All Courses</option>
+                                    {availExamCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select
+                                    className={`filter-select${availStatusFilter ? ' active' : ''}`}
+                                    value={availStatusFilter}
+                                    onChange={e => setAvailStatusFilter(e.target.value)}
+                                >
+                                    <option value="">All Status</option>
+                                    <option value="upcoming">Upcoming</option>
+                                    <option value="past">Past</option>
+                                </select>
+                                <select
+                                    className={`filter-select${availSort !== 'date-newest' ? ' active' : ''}`}
+                                    value={availSort}
+                                    onChange={e => setAvailSort(e.target.value)}
+                                >
+                                    <option value="date-newest">Date (Newest)</option>
+                                    <option value="date-oldest">Date (Oldest)</option>
+                                    <option value="title-az">Title (A-Z)</option>
+                                    <option value="title-za">Title (Z-A)</option>
+                                </select>
+                                {(availCourseFilter || availStatusFilter || availSort !== 'date-newest') && (
+                                    <button className="filter-clear" onClick={() => {
+                                        setAvailCourseFilter('');
+                                        setAvailStatusFilter('');
+                                        setAvailSort('date-newest');
+                                    }}>✕ Clear</button>
+                                )}
                             </div>
                         </div>
-                        {exams.length > 0 ? (
+
+                        {filteredUpcomingExams.length > 0 ? (
                             <div className="sd-exam-list-grid">
-                                {exams.map(exam => (
+                                {filteredUpcomingExams.map(exam => (
                                     <div key={exam.id} className="sd-exam-card">
                                         <div className="sd-exam-card-title">{exam.title}</div>
                                         <div className="sd-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
@@ -801,10 +934,10 @@ const StudentDashboard = () => {
                         ) : (
                             <div className="sd-empty">
                                 <div className="sd-empty-icon">📝</div>
-                                <p>No exams available for your grade.</p>
+                                <p>{(availCourseFilter || availStatusFilter) ? 'No exams match your filters.' : 'No exams available for your grade.'}</p>
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
 
