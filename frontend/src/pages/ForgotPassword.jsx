@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './Login.css'; // Reuse login styling
+import icon from '../assets/images/icon.png';
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
@@ -29,7 +30,7 @@ const ForgotPassword = () => {
                 <div className="login-shape login-shape-1"></div>
                 <div className="login-shape login-shape-2"></div>
                 <div className="login-brand-content">
-                    <img src="/images/icon.png" alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
+                    <img src={icon} alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
                     <h1 className="login-brand-title">Smart<span style={{ color: '#818cf8' }}>Score</span></h1>
                     <p className="login-brand-tagline">Recover Your Account</p>
                 </div>

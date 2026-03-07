@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { jwtDecode } from 'jwt-decode';
 import { GoogleLogin } from '@react-oauth/google';
 import './Login.css';
+import icon from '../assets/images/icon.png';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -110,7 +111,7 @@ const Login = () => {
                 <div className="login-shape login-shape-4"></div>
 
                 <div className="login-brand-content">
-                    <img src="/images/icon.png" alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
+                    <img src={icon} alt="SmartScore" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
                     <h1 className="login-brand-title">Smart<span style={{ color: '#818cf8' }}>Score</span></h1>
                     <p className="login-brand-tagline">Smart Exam Management Portal</p>
 

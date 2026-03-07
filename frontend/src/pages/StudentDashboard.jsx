@@ -4,6 +4,7 @@ import { Modal, Form, Button } from 'react-bootstrap';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './StudentDashboard.css';
+import infinitySymbol from '../assets/images/infinity-symbol.png';
 
 const StudentDashboard = () => {
     const { user, logout } = useAuth();
@@ -431,7 +432,7 @@ const StudentDashboard = () => {
                 {/* ── Top Bar ── */}
                 <div className="ea-topbar">
                     <div className="ea-topbar-left">
-                        <div className="ea-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
+                        <div className="ea-logo"><img src={infinitySymbol} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
                     </div>
                     <div className="ea-topbar-center">
                         {activeExam.course?.name && <span className="ea-course-name">{activeExam.course.name}</span>}
@@ -1099,7 +1100,7 @@ const StudentDashboard = () => {
 // Sidebar Component
 const Sidebar = ({ activeTab, setActiveTab, logout }) => (
     <div className="sd-sidebar">
-        <div className="sd-sidebar-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
+        <div className="sd-sidebar-logo"><img src={infinitySymbol} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
         <div
             className={`sd-sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}

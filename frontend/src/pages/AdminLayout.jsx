@@ -5,6 +5,7 @@ import AdminDashboard from './AdminDashboard';
 import UserManagement from './UserManagement';
 import AdminExams from './AdminExams';
 import './AdminDashboard.css'; // reuse sidebar/layout styles
+import infinitySymbol from '../assets/images/infinity-symbol.png';
 
 const AdminLayout = () => {
     const { user, logout } = useAuth();
@@ -14,7 +15,7 @@ const AdminLayout = () => {
         <div className="ad-wrapper">
             {/* Sidebar */}
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
+                <div className="ad-sidebar-logo"><img src={infinitySymbol} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
                 <div
                     className={`ad-sidebar-item ${activeView === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveView('overview')}

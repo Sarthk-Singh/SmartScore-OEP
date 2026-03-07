@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './AdminDashboard.css';
+import infinitySymbol from '../assets/images/infinity-symbol.png';
 
 const AdminDashboard = ({ isEmbedded = false }) => {
     const { user, logout } = useAuth();
@@ -622,7 +623,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     return (
         <div className="ad-wrapper">
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
+                <div className="ad-sidebar-logo"><img src={infinitySymbol} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
                 <div className={`ad-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
                     onClick={() => setActiveTab('users')}><span className="nav-icon">👥</span> Users</div>
                 <div className={`ad-sidebar-item ${activeTab === 'structure' ? 'active' : ''}`}

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { toast } from 'react-toastify';
 import './AdminDashboard.css'; // Shared dark theme CSS
+import infinitySymbol from '../assets/images/infinity-symbol.png';
 
 const TeacherDashboard = () => {
     const { user, logout } = useAuth();
@@ -433,7 +434,7 @@ const TeacherDashboard = () => {
         <div className="ad-wrapper">
             {/* Sidebar */}
             <div className="ad-sidebar">
-                <div className="ad-sidebar-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
+                <div className="ad-sidebar-logo"><img src={infinitySymbol} alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
                 <div className={`ad-sidebar-item ${activeTab === 'exams' ? 'active' : ''}`}
                     onClick={() => setActiveTab('exams')}><span className="nav-icon">📝</span> Exams</div>
                 <div className={`ad-sidebar-item ${activeTab === 'teachers' ? 'active' : ''}`}
