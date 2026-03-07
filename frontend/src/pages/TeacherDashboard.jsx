@@ -65,6 +65,19 @@ const TeacherDashboard = () => {
     // Sidebar
     const [activeTab, setActiveTab] = useState('exams');
 
+    // Teachers tab state
+    const [teachers, setTeachers] = useState([]);
+    const [teachersLoaded, setTeachersLoaded] = useState(false);
+    const [expandedTeacherId, setExpandedTeacherId] = useState(null);
+
+    // Students tab state
+    const [students, setStudents] = useState([]);
+    const [studentsLoaded, setStudentsLoaded] = useState(false);
+    const [studentsSearch, setStudentsSearch] = useState('');
+    const [activityStudent, setActivityStudent] = useState(null);
+    const [studentActivity, setStudentActivity] = useState(null);
+    const [activityLoading, setActivityLoading] = useState(false);
+
     const fetchExams = async () => {
         try { const r = await api.get('/exams'); setExams(r.data); }
         catch (err) { console.error(err); toast.error('Failed to fetch exams'); }
@@ -75,7 +88,37 @@ const TeacherDashboard = () => {
         catch (err) { console.error(err); toast.error('Failed to fetch grades'); }
     };
 
+    const fetchMyTeachers = async () => {
+        try { const r = await api.get('/teacher/my-teachers'); setTeachers(r.data); setTeachersLoaded(true); }
+        catch (err) { console.error(err); toast.error('Failed to fetch teachers'); }
+    };
+
+    const fetchMyStudents = async () => {
+        try { const r = await api.get('/teacher/my-students'); setStudents(r.data); setStudentsLoaded(true); }
+        catch (err) { console.error(err); toast.error('Failed to fetch students'); }
+    };
+
+    const fetchStudentActivity = async (student) => {
+        setActivityStudent(student);
+        setStudentActivity(null);
+        setActivityLoading(true);
+        try {
+            const r = await api.get(`/teacher/student-activity/${student.id}`);
+            setStudentActivity(r.data);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to fetch activity');
+            setActivityStudent(null);
+        } finally {
+            setActivityLoading(false);
+        }
+    };
+
     useEffect(() => { fetchExams(); fetchMyGrades(); }, []);
+
+    useEffect(() => {
+        if (activeTab === 'teachers' && !teachersLoaded) fetchMyTeachers();
+        if (activeTab === 'students' && !studentsLoaded) fetchMyStudents();
+    }, [activeTab]);
 
     const handleCreateExam = async (e) => {
         e.preventDefault();
@@ -307,6 +350,10 @@ const TeacherDashboard = () => {
                 <div className="ad-sidebar-logo"><img src="/images/infinity-symbol.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain' }} /><span>Smart<span style={{ color: '#818cf8' }}>Score</span></span></div>
                 <div className={`ad-sidebar-item ${activeTab === 'exams' ? 'active' : ''}`}
                     onClick={() => setActiveTab('exams')}><span className="nav-icon">📝</span> Exams</div>
+                <div className={`ad-sidebar-item ${activeTab === 'teachers' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('teachers')}><span className="nav-icon">👨‍🏫</span> Teachers</div>
+                <div className={`ad-sidebar-item ${activeTab === 'students' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('students')}><span className="nav-icon">🎓</span> Students</div>
                 <div className="ad-sidebar-bottom">
                     <div className="ad-sidebar-item" onClick={logout}><span className="nav-icon">🚪</span> Logout</div>
                 </div>
@@ -316,43 +363,202 @@ const TeacherDashboard = () => {
                 {/* Header */}
                 <div className="ad-header">
                     <div className="ad-header-left">
-                        <h1>Teacher Dashboard 📚</h1>
-                        <p>Manage your exams, questions, and results</p>
+                        {activeTab === 'exams' && <><h1>Teacher Dashboard 📚</h1><p>Manage your exams, questions, and results</p></>}
+                        {activeTab === 'teachers' && <><h1>Teachers 👨‍🏫</h1><p>Other teachers assigned to your grades</p></>}
+                        {activeTab === 'students' && <><h1>Students 🎓</h1><p>Students enrolled in your grades</p></>}
                     </div>
                     <div className="ad-header-right">
                         <span className="ad-badge">👨‍🏫 {user?.name}</span>
-                        <button className="ad-primary-btn" onClick={() => setShowCreateExamModal(true)}>+ Create Exam</button>
+                        {activeTab === 'exams' && <button className="ad-primary-btn" onClick={() => setShowCreateExamModal(true)}>+ Create Exam</button>}
                         <button className="ad-logout-btn" onClick={logout}>Logout</button>
                     </div>
                 </div>
 
-                {/* Exam Cards */}
-                {exams.length > 0 ? (
-                    <div className="ad-cards-grid">
-                        {exams.map(exam => (
-                            <div key={exam.id} className="ad-exam-card">
-                                <div className="ad-exam-card-title">{exam.title}</div>
-                                <div className="ad-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
-                                <div className="ad-exam-card-info">
-                                    📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
-                                    ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
+                {/* ===== EXAMS TAB ===== */}
+                {activeTab === 'exams' && (
+                    exams.length > 0 ? (
+                        <div className="ad-cards-grid">
+                            {exams.map(exam => (
+                                <div key={exam.id} className="ad-exam-card">
+                                    <div className="ad-exam-card-title">{exam.title}</div>
+                                    <div className="ad-exam-card-sub">{exam.grade?.name} — {exam.course?.name}</div>
+                                    <div className="ad-exam-card-info">
+                                        📅 {new Date(exam.scheduledDate).toLocaleString()}<br />
+                                        ⏱ {exam.durationMinutes} mins &nbsp;•&nbsp; 📋 {exam._count?.questions || 0} questions
+                                    </div>
+                                    <div className="ad-btn-row" style={{ marginTop: 0 }}>
+                                        <button className="ad-primary-btn ad-btn-sm" style={{ backgroundColor: '#8b5cf6' }} onClick={() => openAIGenModal(exam)}>🤖 AI Gen</button>
+                                        <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
+                                        <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
+                                        <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
+                                        <button className="ad-warning-btn ad-btn-sm" onClick={() => openResults(exam)}>Results</button>
+                                    </div>
                                 </div>
-                                <div className="ad-btn-row" style={{ marginTop: 0 }}>
-                                    <button className="ad-primary-btn ad-btn-sm" style={{ backgroundColor: '#8b5cf6' }} onClick={() => openAIGenModal(exam)}>🤖 AI Gen</button>
-                                    <button className="ad-info-btn ad-btn-sm" onClick={() => openAddQuestion(exam.id)}>Add Q's</button>
-                                    <button className="ad-success-btn ad-btn-sm" onClick={() => openBulkUpload(exam.id)}>📤 Bulk</button>
-                                    <button className="ad-secondary-btn ad-btn-sm" onClick={() => openManageExam(exam.id)}>Manage</button>
-                                    <button className="ad-warning-btn ad-btn-sm" onClick={() => openResults(exam)}>Results</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="ad-section">
-                        <div className="ad-empty">
-                            <div className="ad-empty-icon">📝</div>
-                            <p>No exams yet. Click "Create Exam" to get started!</p>
+                            ))}
                         </div>
+                    ) : (
+                        <div className="ad-section">
+                            <div className="ad-empty">
+                                <div className="ad-empty-icon">📝</div>
+                                <p>No exams yet. Click "Create Exam" to get started!</p>
+                            </div>
+                        </div>
+                    )
+                )}
+
+                {/* ===== TEACHERS TAB ===== */}
+                {activeTab === 'teachers' && (
+                    <div className="ad-section">
+                        {teachers.length === 0 ? (
+                            <div className="ad-empty">
+                                <div className="ad-empty-icon">👨‍🏫</div>
+                                <p>No other teachers are assigned to your grades yet.</p>
+                            </div>
+                        ) : (
+                            <table className="ad-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th style={{ textAlign: 'center' }}>Exams Created</th>
+                                        <th style={{ textAlign: 'center' }}>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {teachers.map(t => (
+                                        <>
+                                            <tr key={t.id}>
+                                                <td style={{ color: '#fff', fontWeight: 500 }}>{t.name}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{t.email}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span
+                                                        onClick={() => setExpandedTeacherId(expandedTeacherId === t.id ? null : t.id)}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                            minWidth: 32, height: 26, padding: '0 10px',
+                                                            background: 'rgba(99,102,241,0.18)', color: '#818cf8',
+                                                            border: '1px solid rgba(99,102,241,0.35)', borderRadius: 99,
+                                                            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                                            transition: 'background 0.15s',
+                                                        }}
+                                                    >{t.createdExams.length}</span>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <button
+                                                        className="ad-secondary-btn ad-btn-sm"
+                                                        onClick={() => setExpandedTeacherId(expandedTeacherId === t.id ? null : t.id)}
+                                                    >
+                                                        {expandedTeacherId === t.id ? '▲ Hide' : '▼ View Exams'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {expandedTeacherId === t.id && (
+                                                <tr key={`${t.id}-expanded`}>
+                                                    <td colSpan={4} style={{ padding: 0 }}>
+                                                        <div style={{
+                                                            background: 'rgba(99,102,241,0.05)',
+                                                            border: '1px solid rgba(99,102,241,0.15)',
+                                                            borderRadius: 8, margin: '4px 0 10px',
+                                                            padding: t.createdExams.length === 0 ? '16px 20px' : 0,
+                                                            overflow: 'hidden',
+                                                        }}>
+                                                            {t.createdExams.length === 0 ? (
+                                                                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>No exams created in your grades yet.</p>
+                                                            ) : (
+                                                                <table className="ad-table" style={{ margin: 0, borderRadius: 0 }}>
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Exam Title</th>
+                                                                            <th>Course</th>
+                                                                            <th>Scheduled Date</th>
+                                                                            <th style={{ textAlign: 'center' }}>Submissions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {t.createdExams.map(ex => (
+                                                                            <tr key={ex.id}>
+                                                                                <td style={{ color: '#e2e8f0' }}>{ex.title}</td>
+                                                                                <td style={{ color: 'var(--text-secondary)' }}>{ex.course?.name}</td>
+                                                                                <td style={{ color: 'var(--text-secondary)' }}>{new Date(ex.scheduledDate).toLocaleDateString()}</td>
+                                                                                <td style={{ textAlign: 'center', color: '#818cf8', fontWeight: 600 }}>{ex._count?.submissions ?? 0}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                )}
+
+                {/* ===== STUDENTS TAB ===== */}
+                {activeTab === 'students' && (
+                    <div className="ad-section">
+                        {/* Search bar */}
+                        <div style={{ marginBottom: 18 }}>
+                            <input
+                                className="ad-input"
+                                placeholder="🔍 Search by name, roll number, or university roll no."
+                                value={studentsSearch}
+                                onChange={e => setStudentsSearch(e.target.value)}
+                                style={{ maxWidth: 420 }}
+                            />
+                        </div>
+
+                        {(() => {
+                            const q = studentsSearch.toLowerCase().trim();
+                            const filtered = q
+                                ? students.filter(s =>
+                                    s.name.toLowerCase().includes(q) ||
+                                    (s.rollNumber || '').toLowerCase().includes(q) ||
+                                    (s.universityRollNumber || '').toLowerCase().includes(q)
+                                )
+                                : students;
+
+                            return filtered.length === 0 ? (
+                                <div className="ad-empty">
+                                    <div className="ad-empty-icon">🎓</div>
+                                    <p>{q ? 'No students match your search.' : 'No students are enrolled in your grades yet.'}</p>
+                                </div>
+                            ) : (
+                                <table className="ad-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Roll Number</th>
+                                            <th>University Roll No.</th>
+                                            <th style={{ textAlign: 'center' }}>Semester</th>
+                                            <th style={{ textAlign: 'center' }}>Activity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filtered.map(s => (
+                                            <tr key={s.id}>
+                                                <td style={{ color: '#fff', fontWeight: 500 }}>{s.name}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.email}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.rollNumber || '—'}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.universityRollNumber || '—'}</td>
+                                                <td style={{ textAlign: 'center', color: '#818cf8', fontWeight: 600 }}>{s.semester ?? '—'}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <button
+                                                        className="ad-info-btn ad-btn-sm"
+                                                        onClick={() => fetchStudentActivity(s)}
+                                                    >📊 Activity</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -920,6 +1126,111 @@ const TeacherDashboard = () => {
                                 {aiGenLoading ? '🤖 Generating questions...' : 'Generate Questions'}
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* ========== STUDENT ACTIVITY MODAL ========== */}
+            {(activityLoading || activityStudent) && (
+                <div className="ad-modal-overlay" onClick={() => { setActivityStudent(null); setStudentActivity(null); }}>
+                    <div
+                        className="ad-modal lg"
+                        onClick={e => e.stopPropagation()}
+                        style={{ maxWidth: 760, maxHeight: '88vh', overflowY: 'auto' }}
+                    >
+                        <div className="ad-modal-title" style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                            <span>📊 Exam Activity</span>
+                            <button className="ad-modal-close" onClick={() => { setActivityStudent(null); setStudentActivity(null); }}>✕</button>
+                        </div>
+
+                        {activityLoading && (
+                            <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                <div style={{ fontSize: 28, marginBottom: 12 }}>⏳</div>
+                                Loading activity...
+                            </div>
+                        )}
+
+                        {studentActivity && (
+                            <>
+                                {/* Student info header */}
+                                <div style={{ padding: '20px 0 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: 20 }}>
+                                    <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                                        {studentActivity.student.name}
+                                    </div>
+                                    <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                                        🎓 Grade: <strong style={{ color: '#818cf8' }}>{studentActivity.student.grade || '—'}</strong>
+                                    </div>
+                                </div>
+
+                                {/* Summary bar */}
+                                {studentActivity.activity.length > 0 && (() => {
+                                    const total = studentActivity.activity.length;
+                                    const avgPct = Math.round(
+                                        studentActivity.activity.reduce((acc, a) => acc + a.percentage, 0) / total
+                                    );
+                                    return (
+                                        <div style={{
+                                            display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap'
+                                        }}>
+                                            <div style={{
+                                                flex: 1, minWidth: 140,
+                                                background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)',
+                                                borderRadius: 10, padding: '12px 18px', textAlign: 'center'
+                                            }}>
+                                                <div style={{ fontSize: 26, fontWeight: 800, color: '#818cf8' }}>{total}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Exams Attempted</div>
+                                            </div>
+                                            <div style={{
+                                                flex: 1, minWidth: 140,
+                                                background: avgPct >= 60 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                                                border: `1px solid ${avgPct >= 60 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                                                borderRadius: 10, padding: '12px 18px', textAlign: 'center'
+                                            }}>
+                                                <div style={{ fontSize: 26, fontWeight: 800, color: avgPct >= 60 ? '#4ade80' : '#f87171' }}>{avgPct}%</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Overall Average</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Activity table or empty state */}
+                                {studentActivity.activity.length === 0 ? (
+                                    <div className="ad-empty" style={{ padding: '32px 0' }}>
+                                        <div className="ad-empty-icon">📭</div>
+                                        <p>No exam activity yet.</p>
+                                    </div>
+                                ) : (
+                                    <table className="ad-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Exam Title</th>
+                                                <th>Course</th>
+                                                <th>Date</th>
+                                                <th style={{ textAlign: 'center' }}>Score</th>
+                                                <th style={{ textAlign: 'center' }}>Max</th>
+                                                <th style={{ textAlign: 'center' }}>%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {studentActivity.activity.map((a, idx) => (
+                                                <tr key={idx}>
+                                                    <td style={{ color: '#e2e8f0', fontWeight: 500 }}>{a.examTitle}</td>
+                                                    <td style={{ color: 'var(--text-secondary)' }}>{a.courseName}</td>
+                                                    <td style={{ color: 'var(--text-secondary)' }}>{new Date(a.scheduledDate).toLocaleDateString()}</td>
+                                                    <td style={{ textAlign: 'center', color: '#818cf8', fontWeight: 700 }}>{a.totalScore}</td>
+                                                    <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{a.maxPossibleScore}</td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontWeight: 700, fontSize: 13,
+                                                            color: a.percentage >= 60 ? '#4ade80' : '#f87171'
+                                                        }}>{a.percentage}%</span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </>
+                        )}
                     </div>
                 </div>
             )}

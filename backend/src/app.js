@@ -1077,6 +1077,151 @@ apiRouter.get("/teacher/my-grades", auth, requireRole("TEACHER"), async (req, re
   }
 });
 
+// Teacher views co-teachers assigned to the same grade(s)
+apiRouter.get("/teacher/my-teachers", auth, requireRole("TEACHER"), async (req, res) => {
+  try {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { teachingGrades: { select: { id: true } } }
+    });
+    if (!me) return res.status(404).json({ error: "Teacher not found" });
+
+    const myGradeIds = me.teachingGrades.map(g => g.id);
+    if (myGradeIds.length === 0) return res.json([]);
+
+    const teachers = await prisma.user.findMany({
+      where: {
+        role: "TEACHER",
+        id: { not: req.user.userId },
+        teachingGrades: { some: { id: { in: myGradeIds } } }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdExams: {
+          where: { gradeId: { in: myGradeIds } },
+          select: {
+            id: true,
+            title: true,
+            scheduledDate: true,
+            course: { select: { name: true } },
+            _count: { select: { submissions: true } }
+          },
+          orderBy: { scheduledDate: "desc" }
+        }
+      },
+      orderBy: { name: "asc" }
+    });
+
+    res.json(teachers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher views students enrolled in the same grade(s)
+apiRouter.get("/teacher/my-students", auth, requireRole("TEACHER"), async (req, res) => {
+  try {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { teachingGrades: { select: { id: true } } }
+    });
+    if (!me) return res.status(404).json({ error: "Teacher not found" });
+
+    const myGradeIds = me.teachingGrades.map(g => g.id);
+    if (myGradeIds.length === 0) return res.json([]);
+
+    const students = await prisma.user.findMany({
+      where: {
+        role: "STUDENT",
+        gradeId: { in: myGradeIds }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        rollNumber: true,
+        universityRollNumber: true,
+        semester: true,
+        grade: { select: { name: true } }
+      },
+      orderBy: { name: "asc" }
+    });
+
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher views a student's exam activity (scoped to teacher's grades)
+apiRouter.get("/teacher/student-activity/:studentId", auth, requireRole("TEACHER"), async (req, res) => {
+  const { studentId } = req.params;
+  try {
+    // Get teacher's grade IDs
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { teachingGrades: { select: { id: true } } }
+    });
+    if (!me) return res.status(404).json({ error: "Teacher not found" });
+
+    const myGradeIds = me.teachingGrades.map(g => g.id);
+
+    // Verify student belongs to one of the teacher's grades
+    const student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, name: true, gradeId: true, grade: { select: { name: true } } }
+    });
+    if (!student || student.role === "TEACHER") {
+      return res.status(404).json({ error: "Student not found" });
+    }
+    if (!myGradeIds.includes(student.gradeId)) {
+      return res.status(403).json({ error: "This student is not in your assigned grades" });
+    }
+
+    // Fetch all submissions for this student within the teacher's grades
+    const submissions = await prisma.submission.findMany({
+      where: {
+        studentId,
+        exam: { gradeId: { in: myGradeIds } }
+      },
+      include: {
+        exam: {
+          include: {
+            course: { select: { name: true } },
+            questions: { select: { marks: true } }
+          }
+        }
+      },
+      orderBy: { submittedAt: "desc" }
+    });
+
+    const activity = submissions.map(sub => {
+      const maxPossibleScore = sub.exam.questions.reduce((acc, q) => acc + q.marks, 0);
+      const percentage = maxPossibleScore > 0
+        ? Math.round((sub.totalScore / maxPossibleScore) * 100)
+        : 0;
+      return {
+        examTitle: sub.exam.title,
+        courseName: sub.exam.course.name,
+        scheduledDate: sub.exam.scheduledDate,
+        submittedAt: sub.submittedAt,
+        totalScore: sub.totalScore,
+        maxPossibleScore,
+        percentage
+      };
+    });
+
+    res.json({
+      student: { name: student.name, grade: student.grade?.name || "" },
+      activity
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Teacher creates an exam
 apiRouter.post("/teacher/create-exam", auth, requireRole("TEACHER"), async (req, res) => {
   const { title, gradeId, courseId, scheduledDate, durationMinutes, password, topic } = req.body;
