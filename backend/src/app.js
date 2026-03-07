@@ -540,7 +540,7 @@ apiRouter.post("/admin/create-teacher", auth, requireRole("ADMIN"), async (req, 
 
 // Admin creates a student
 apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, res) => {
-  const { name, email, password, studentId, rollNumber, universityRollNumber, gradeId, semester } = req.body;
+  const { name, email, password, studentId, rollNumber, universityRollNumber, gradeId, semester, section } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -575,7 +575,8 @@ apiRouter.post("/admin/create-student", auth, requireRole("ADMIN"), async (req, 
         studentId,
         universityRollNumber: universityRollNumber || rollNumber,
         gradeId,
-        semester: semester ? parseInt(semester) : null
+        semester: semester ? parseInt(semester) : null,
+        section: section || null
       },
     });
 
@@ -687,11 +688,12 @@ apiRouter.post("/admin/bulk-upload-students",
           if (email) seenEmails.add(email);
           if (sid) seenSids.add(sid);
           if (uniRoll) seenUniRolls.add(uniRoll);
+          const section = r.section?.trim() || null;
           validRows.push({
             name, email, studentId: sid,
             universityRollNumber: uniRoll,
             gradeId: gradeMap[gradeName.toLowerCase()],
-            semester
+            semester, section
           });
         }
       }
@@ -721,7 +723,8 @@ apiRouter.post("/admin/bulk-upload-students",
               studentId: row.studentId,
               universityRollNumber: row.universityRollNumber,
               gradeId: row.gradeId,
-              semester: row.semester
+              semester: row.semester,
+              section: row.section || null
             }
           });
           created.push(student);
@@ -917,6 +920,7 @@ apiRouter.get("/admin/students", auth, requireRole("ADMIN"), async (req, res) =>
         rollNumber: true,
         universityRollNumber: true,
         semester: true,
+        section: true,
         createdAt: true,
         grade: { select: { id: true, name: true } }
       },
@@ -1141,9 +1145,11 @@ apiRouter.get("/teacher/my-students", auth, requireRole("TEACHER"), async (req, 
         id: true,
         name: true,
         email: true,
+        studentId: true,
         rollNumber: true,
         universityRollNumber: true,
         semester: true,
+        section: true,
         grade: { select: { name: true } }
       },
       orderBy: { name: "asc" }
@@ -1684,6 +1690,7 @@ apiRouter.get("/student/dashboard", auth, requireRole("STUDENT"), async (req, re
         name: student.name,
         grade: student.grade?.name || 'N/A',
         semester: student.semester,
+        section: student.section,
         universityRollNumber: student.universityRollNumber
       },
       stats: {

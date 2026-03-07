@@ -517,8 +517,10 @@ const TeacherDashboard = () => {
                             const filtered = q
                                 ? students.filter(s =>
                                     s.name.toLowerCase().includes(q) ||
+                                    (s.studentId || '').toLowerCase().includes(q) ||
                                     (s.rollNumber || '').toLowerCase().includes(q) ||
-                                    (s.universityRollNumber || '').toLowerCase().includes(q)
+                                    (s.universityRollNumber || '').toLowerCase().includes(q) ||
+                                    (s.section || '').toLowerCase().includes(q)
                                 )
                                 : students;
 
@@ -531,22 +533,28 @@ const TeacherDashboard = () => {
                                 <table className="ad-table">
                                     <thead>
                                         <tr>
+                                            <th>Student ID</th>
+                                            <th>Uni Roll No.</th>
                                             <th>Name</th>
                                             <th>Email</th>
+                                            <th>Grade</th>
+                                            <th style={{ textAlign: 'center' }}>Sem</th>
+                                            <th style={{ textAlign: 'center' }}>Section</th>
                                             <th>Roll Number</th>
-                                            <th>University Roll No.</th>
-                                            <th style={{ textAlign: 'center' }}>Semester</th>
                                             <th style={{ textAlign: 'center' }}>Activity</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filtered.map(s => (
                                             <tr key={s.id}>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.studentId || '—'}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.universityRollNumber || '—'}</td>
                                                 <td style={{ color: '#fff', fontWeight: 500 }}>{s.name}</td>
                                                 <td style={{ color: 'var(--text-secondary)' }}>{s.email}</td>
-                                                <td style={{ color: 'var(--text-secondary)' }}>{s.rollNumber || '—'}</td>
-                                                <td style={{ color: 'var(--text-secondary)' }}>{s.universityRollNumber || '—'}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.grade?.name || '—'}</td>
                                                 <td style={{ textAlign: 'center', color: '#818cf8', fontWeight: 600 }}>{s.semester ?? '—'}</td>
+                                                <td style={{ textAlign: 'center', color: '#818cf8', fontWeight: 600 }}>{s.section || '—'}</td>
+                                                <td style={{ color: 'var(--text-secondary)' }}>{s.rollNumber || '—'}</td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <button
                                                         className="ad-info-btn ad-btn-sm"

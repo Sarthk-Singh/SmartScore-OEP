@@ -20,6 +20,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     const [uniRollNumber, setUniRollNumber] = useState('');
     const [selectedGradeId, setSelectedGradeId] = useState('');
     const [semester, setSemester] = useState('');
+    const [section, setSection] = useState('');
 
     // Grade & Course State
     const [gradeName, setGradeName] = useState('');
@@ -91,11 +92,11 @@ const AdminDashboard = ({ isEmbedded = false }) => {
             await api.post('/admin/create-student', {
                 name: studentName, email: studentEmail, password: "portal@123",
                 studentId, rollNumber, universityRollNumber: uniRollNumber,
-                gradeId: selectedGradeId, semester: semester || null
+                gradeId: selectedGradeId, semester: semester || null, section: section || null
             });
             toast.success('Student created! Default password: portal@123');
             setStudentName(''); setStudentEmail(''); setStudentId('');
-            setRollNumber(''); setUniRollNumber(''); setSelectedGradeId(''); setSemester('');
+            setRollNumber(''); setUniRollNumber(''); setSelectedGradeId(''); setSemester(''); setSection('');
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create student');
         }
@@ -185,7 +186,7 @@ const AdminDashboard = ({ isEmbedded = false }) => {
     };
 
     const downloadStudentTemplate = () => {
-        const template = 'name,email,studentId,universityRollNumber,grade,semester\n"John Doe",john@exam.com,STU001,UNI001,BTech,1\n';
+        const template = 'name,email,studentId,universityRollNumber,grade,semester,section\n"John Doe",john@exam.com,STU001,UNI001,BTech,1,A1\n';
         const blob = new Blob([template], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'student_template.csv'; a.click();
@@ -376,6 +377,10 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                     <label>Semester</label>
                                     <input className="ad-input" type="number" min="1" placeholder="e.g. 1" value={semester} onChange={e => setSemester(e.target.value)} />
                                 </div>
+                                <div className="ad-input-group">
+                                    <label>Section (Optional)</label>
+                                    <input className="ad-input" placeholder="e.g. A1, B2" value={section} onChange={e => setSection(e.target.value)} />
+                                </div>
                             </div>
                             <div className="ad-btn-row">
                                 <button type="submit" className="ad-success-btn">Create Student</button>
@@ -483,8 +488,8 @@ const AdminDashboard = ({ isEmbedded = false }) => {
 
                         <div className="ad-alert info">
                             <span>
-                                <strong>CSV Format:</strong> <code>name,email,studentId,universityRollNumber,grade,semester</code><br />
-                                Use the <strong>grade name</strong> (e.g., "BTech", "BSc") — not the ID.<br />
+                                <strong>CSV Format:</strong> <code>name,email,studentId,universityRollNumber,grade,semester,section</code><br />
+                                <code>section</code> is optional (e.g. A1, B2). Use the <strong>grade name</strong> (e.g., "BTech") — not the ID.<br />
                                 All students get <strong>default password: portal@123</strong>
                             </span>
                         </div>

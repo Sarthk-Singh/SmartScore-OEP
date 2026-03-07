@@ -172,6 +172,7 @@ const UserManagement = () => {
             s.email.toLowerCase().includes(q) ||
             (s.studentId && s.studentId.toLowerCase().includes(q)) ||
             (s.universityRollNumber && s.universityRollNumber.toLowerCase().includes(q)) ||
+            (s.section && s.section.toLowerCase().includes(q)) ||
             (s.grade?.name && s.grade.name.toLowerCase().includes(q))
         );
     }, [students, search]);
@@ -286,22 +287,23 @@ const UserManagement = () => {
                             <table className="ad-table">
                                 <thead>
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
                                         <th>Student ID</th>
                                         <th>Uni Roll No</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
                                         <th>Grade</th>
                                         <th>Sem</th>
+                                        <th>Section</th>
                                         <th style={{ width: 60, textAlign: 'center' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredStudents.map(s => (
                                         <tr key={s.id}>
-                                            <td style={{ fontWeight: 500, color: '#fff' }}>{s.name}</td>
-                                            <td>{s.email}</td>
                                             <td>{s.studentId || '—'}</td>
                                             <td>{s.universityRollNumber || '—'}</td>
+                                            <td style={{ fontWeight: 500, color: '#fff' }}>{s.name}</td>
+                                            <td>{s.email}</td>
                                             <td>
                                                 {s.grade
                                                     ? <span className="ad-badge-pill">{s.grade.name}</span>
@@ -309,6 +311,7 @@ const UserManagement = () => {
                                                 }
                                             </td>
                                             <td>{s.semester || '—'}</td>
+                                            <td>{s.section || '—'}</td>
                                             <td style={{ textAlign: 'center' }}>
                                                 <ActionMenu
                                                     user={{ ...s, role: 'STUDENT' }}
