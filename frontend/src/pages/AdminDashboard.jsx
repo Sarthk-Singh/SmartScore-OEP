@@ -360,8 +360,8 @@ const AdminDashboard = ({ isEmbedded = false }) => {
                                     <input className="ad-input" required value={studentId} onChange={e => setStudentId(e.target.value)} />
                                 </div>
                                 <div className="ad-input-group">
-                                    <label>University Roll No</label>
-                                    <input className="ad-input" required value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
+                                    <label>Roll Number</label>
+                                    <input className="ad-input" value={rollNumber} onChange={e => setRollNumber(e.target.value)} />
                                 </div>
                                 <div className="ad-input-group full-width">
                                     <label>University Roll Number</label>
